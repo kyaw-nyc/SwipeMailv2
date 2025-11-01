@@ -43,6 +43,16 @@ const decodeBody = (payload) => {
   }
 };
 
+const sanitizeBody = (text) => {
+  if (!text) return "";
+  return text
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/=\r?\n/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .trim();
+};
+
 const mapMessage = (message) => {
   const headers = message.payload?.headers ?? [];
   const subject = getHeaderValue(headers, "Subject") || "(No subject)";
@@ -50,6 +60,8 @@ const mapMessage = (message) => {
   const date = getHeaderValue(headers, "Date");
   const snippet = message.snippet ?? "";
   const body = decodeBody(message.payload);
+  const cleanedBody = sanitizeBody(body);
+  const preview = cleanedBody ? cleanedBody.slice(0, 420) : sanitizeBody(snippet).slice(0, 240);
 
   return {
     id: message.id,
@@ -58,6 +70,7 @@ const mapMessage = (message) => {
     from,
     snippet,
     body,
+    preview,
     date,
     internalDate: Number(message.internalDate ?? Date.now()),
     labelIds: message.labelIds ?? [],

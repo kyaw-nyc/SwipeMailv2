@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from "react";
 import "./App.css";
 import { supabase } from "../supabaseClient";
 import SignInPage from "./pages/SignIn";
@@ -16,15 +16,50 @@ const ACTION_COPY = {
   up: { label: "Starred", description: "Pinned to follow up when you're ready." },
 };
 
-const SwipeCard = ({ email, onSwipe, disabled }) => {
+const HINT_COPY = {
+  left: { label: "Mark as read", sub: "Swipe left" },
+  right: { label: "Archive", sub: "Swipe right" },
+  up: { label: "Star", sub: "Swipe up" },
+};
+
+const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0, rotation: 0 });
+  const [opacity, setOpacity] = useState(1);
+  const [hint, setHint] = useState(null);
   const startPositionRef = useRef({ x: 0, y: 0 });
   const isAnimatingOutRef = useRef(false);
 
   const resetCard = () => {
     setOffset({ x: 0, y: 0, rotation: 0 });
+    setOpacity(1);
+    setHint(null);
   };
+
+  const animateOut = async (direction) => {
+    if (isAnimatingOutRef.current) return;
+
+    isAnimatingOutRef.current = true;
+    const exit = CARD_EXIT_TRANSLATIONS[direction];
+    setOffset(exit);
+    setOpacity(0);
+    setHint(direction);
+
+    // Wait for animation to complete
+    await new Promise(resolve => setTimeout(resolve, 280));
+
+    try {
+      await onSwipe(direction);
+    } catch (error) {
+      console.error(error);
+      isAnimatingOutRef.current = false;
+      resetCard();
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    triggerSwipe: animateOut,
+  }));
 
   const handlePointerDown = (event) => {
     if (disabled) return;
@@ -38,12 +73,22 @@ const SwipeCard = ({ email, onSwipe, disabled }) => {
 
     const deltaX = event.clientX - startPositionRef.current.x;
     const deltaY = event.clientY - startPositionRef.current.y;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
 
     setOffset({
       x: deltaX,
       y: deltaY,
       rotation: deltaX * 0.05,
     });
+
+    let nextHint = null;
+    if (absX > absY && absX > 32) {
+      nextHint = deltaX > 0 ? "right" : "left";
+    } else if (deltaY < -48) {
+      nextHint = "up";
+    }
+    setHint(nextHint);
   };
 
   const handlePointerUp = async (event) => {
@@ -70,55 +115,58 @@ const SwipeCard = ({ email, onSwipe, disabled }) => {
       return;
     }
 
-    isAnimatingOutRef.current = true;
-    const exit = CARD_EXIT_TRANSLATIONS[direction];
-    setOffset(exit);
-
-    try {
-      await onSwipe(direction);
-    } catch (error) {
-      console.error(error);
-      isAnimatingOutRef.current = false;
-      resetCard();
-    }
+    await animateOut(direction);
   };
 
   useEffect(() => {
-    if (!isDragging && !isAnimatingOutRef.current) {
-      resetCard();
-    }
+    isAnimatingOutRef.current = false;
+    resetCard();
   }, [email.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeHint = hint ? HINT_COPY[hint] : null;
+
+  const cardClassName = `mail-card${hint ? ` mail-card--${hint}` : ""}`;
 
   return (
     <article
-      className="mail-card"
+      className={cardClassName}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={{
         transform: `translate3d(${offset.x}px, ${offset.y}px, 0) rotate(${offset.rotation}deg)`,
-        transition: isDragging ? "none" : "transform 0.28s ease-in-out, box-shadow 0.28s ease",
+        opacity: opacity,
+        transition: isDragging ? "none" : "transform 0.28s ease-in-out, opacity 0.28s ease-in-out, box-shadow 0.28s ease",
         cursor: disabled ? "default" : "grab",
       }}
       role="button"
       aria-label={`Email from ${email.from} with subject ${email.subject}`}
     >
+      <div className={`mail-card__hint ${hint ? `mail-card__hint--${hint}` : ""}`}>
+        {activeHint ? (
+          <>
+            <span>{activeHint.label}</span>
+            <small>{activeHint.sub}</small>
+          </>
+        ) : (
+          <span className="mail-card__hint-placeholder">Drag to act</span>
+        )}
+      </div>
+
       <header className="mail-card__header">
         <div className="mail-card__from">{email.from}</div>
         <time className="mail-card__date">{new Date(email.internalDate).toLocaleString()}</time>
       </header>
       <h3 className="mail-card__subject">{email.subject}</h3>
-      <p className="mail-card__snippet">{email.snippet}</p>
       <div className="mail-card__body">
-        {email.body ? email.body.slice(0, 420) : "No preview available."}
+        {email.body || email.snippet || "No preview available."}
       </div>
-      <footer className="mail-card__footer">
-        <span>Swipe right to archive · left to mark read · up to star</span>
-      </footer>
     </article>
   );
-};
+});
+
+SwipeCard.displayName = "SwipeCard";
 
 function App() {
   const [session, setSession] = useState(null);
@@ -129,6 +177,7 @@ function App() {
   const [activeAction, setActiveAction] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
   const [needsGoogleReauth, setNeedsGoogleReauth] = useState(false);
+  const swipeCardRef = useRef(null);
 
   const providerToken = session?.provider_token;
 
@@ -279,6 +328,25 @@ function App() {
     return () => clearTimeout(timeout);
   }, [actionFeedback]);
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (activeAction || !emails.length || !swipeCardRef.current) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        swipeCardRef.current.triggerSwipe("left");
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        swipeCardRef.current.triggerSwipe("right");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        swipeCardRef.current.triggerSwipe("up");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [emails, activeAction]);
+
   if (!session) {
     return <SignInPage />;
   }
@@ -314,6 +382,7 @@ function App() {
               Swipe up → Star
             </li>
           </ul>
+          <p className="sidebar__keyboard-note">Tip: Arrow keys work too.</p>
         </div>
 
         <div className="sidebar__footer">
@@ -370,57 +439,56 @@ function App() {
         ) : null}
 
         <section className="stage__deck">
-          {isLoadingEmails && emails.length === 0 ? (
-            <div className="mail-card mail-card--placeholder">
-              <div className="mail-card__skeleton mail-card__skeleton--from" />
-              <div className="mail-card__skeleton mail-card__skeleton--subject" />
-              <div className="mail-card__skeleton mail-card__skeleton--snippet" />
-              <div className="mail-card__skeleton mail-card__skeleton--body" />
-            </div>
-          ) : null}
+          <div className="stage__deck-surface">
+            {isLoadingEmails && emails.length === 0 ? (
+              <div className="mail-card mail-card--placeholder">
+                <div className="mail-card__skeleton mail-card__skeleton--from" />
+                <div className="mail-card__skeleton mail-card__skeleton--subject" />
+                <div className="mail-card__skeleton mail-card__skeleton--body" />
+              </div>
+            ) : null}
 
-          {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
-            <div className="empty-state">
-              <h2>Nothing left to triage 🎉</h2>
-              <p>When new emails arrive, swipe through them right here.</p>
-            </div>
-          ) : null}
+            {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
+              <div className="empty-state">
+                <h2>Nothing left to triage 🎉</h2>
+                <p>When new emails arrive, swipe through them right here.</p>
+              </div>
+            ) : null}
 
-          {needsGoogleReauth && (
-            <div className="empty-state empty-state--reauth">
-              <h2>Connect Gmail to start swiping</h2>
-              <p>
-                We need permission to read and update your inbox. Google may ask you to confirm the
-                Gmail scopes because the app is still in testing.
-              </p>
-              <button type="button" onClick={reconnectGmail} className="empty-state__cta">
-                Grant Gmail access
-              </button>
-            </div>
-          )}
+            {needsGoogleReauth && (
+              <div className="empty-state empty-state--reauth">
+                <h2>Connect Gmail to start swiping</h2>
+                <p>
+                  We need permission to read and update your inbox. Google may ask you to confirm the
+                  Gmail scopes because the app is still in testing.
+                </p>
+                <button type="button" onClick={reconnectGmail} className="empty-state__cta">
+                  Grant Gmail access
+                </button>
+              </div>
+            )}
 
-          {emails.slice(0, 3).map((email, index) => (
-            <div
-              key={email.id}
-              className={`deck-layer deck-layer--${index}`}
-              style={{ zIndex: 10 - index }}
-            >
-              {index === 0 ? (
-                <SwipeCard email={email} onSwipe={handleSwipe} disabled={!!activeAction} />
-              ) : (
-                <article className="mail-card mail-card--preview">
-                  <header className="mail-card__header">
-                    <div className="mail-card__from">{email.from}</div>
-                    <time className="mail-card__date">
-                      {new Date(email.internalDate).toLocaleDateString()}
-                    </time>
-                  </header>
-                  <h3 className="mail-card__subject">{email.subject}</h3>
-                  <p className="mail-card__snippet">{email.snippet}</p>
-                </article>
-              )}
-            </div>
-          ))}
+            {emails[0] ? (
+              <SwipeCard ref={swipeCardRef} email={emails[0]} onSwipe={handleSwipe} disabled={!!activeAction} />
+            ) : null}
+          </div>
+
+          <aside className="stage__deck-queue">
+            <span className="stage__queue-label">Up next</span>
+            {emails.slice(1, 4).map((email) => (
+              <article key={email.id} className="queue-card">
+                <div className="queue-card__meta">
+                  <span>{new Date(email.internalDate).toLocaleDateString()}</span>
+                </div>
+                <h4>{email.subject}</h4>
+                <p>{email.from}</p>
+              </article>
+            ))}
+
+            {emails.length <= 1 && !needsGoogleReauth ? (
+              <div className="queue-card queue-card--placeholder">Inbox will refill here</div>
+            ) : null}
+          </aside>
         </section>
 
         {actionFeedback ? (
