@@ -1,14 +1,16 @@
 #root {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .dashboard {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   grid-template-areas: "sidebar stage";
   background: linear-gradient(90deg, #f4f5f7 0%, #f8f9fb 50%, #f5f6f8 100%);
   color: #101010;
+  overflow: hidden;
 }
 
 .dashboard__sidebar {
@@ -20,6 +22,8 @@
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
+  overflow-y: auto;
+  height: 100vh;
 }
 
 .sidebar__logo {
@@ -195,11 +199,13 @@
 
 .dashboard__stage {
   grid-area: stage;
-  padding: clamp(2.5rem, 6vw, 4.5rem);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   position: relative;
+  overflow-y: auto;
+  height: 100vh;
 }
 
 .stage__header h1 {
@@ -219,16 +225,16 @@
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(220px, 280px);
   gap: 2rem;
-  align-items: flex-start;
-  min-height: 640px;
+  align-items: stretch;
+  min-height: 600px;
 }
 
 .stage__deck-surface {
-  min-height: 640px;
+  min-height: 600px;
   border-radius: 52px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(246, 248, 252, 0.88) 100%);
   box-shadow: 0 44px 90px rgba(15, 23, 42, 0.15);
-  padding: clamp(3.3rem, 6.5vw, 4.4rem);
+  padding: clamp(2rem, 4vw, 3rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,10 +244,11 @@
 
 .mail-card {
   width: min(620px, 100%);
+  min-height: 480px;
   background: #ffffff;
   border-radius: 36px;
   box-shadow: 0 42px 92px rgba(15, 23, 42, 0.18);
-  padding: clamp(2.3rem, 5vw, 3.2rem);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
@@ -328,8 +335,8 @@
   flex: 1;
   color: #1f2937;
   line-height: 1.7;
-  overflow-y: scroll;
-  max-height: 360px;
+  overflow-y: auto;
+  max-height: 350px;
   padding-right: 1rem;
   white-space: normal;
   scroll-behavior: smooth;
@@ -389,6 +396,7 @@
 
 .mail-card--placeholder {
   gap: 0;
+  min-height: 480px;
 }
 
 .mail-card__skeleton {
@@ -531,6 +539,11 @@
   padding: 2.5rem;
   text-align: center;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-state h2 {
