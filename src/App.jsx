@@ -23,27 +23,83 @@ const HINT_COPY = {
 };
 
 const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [offset, setOffset] = useState({ x: 0, y: 0, rotation: 0 });
-  const [opacity, setOpacity] = useState(1);
   const [hint, setHint] = useState(null);
+  const cardRef = useRef(null);
   const startPositionRef = useRef({ x: 0, y: 0 });
+  const offsetRef = useRef({ x: 0, y: 0, rotation: 0 });
+  const rafRef = useRef(null);
+  const isDraggingRef = useRef(false);
   const isAnimatingOutRef = useRef(false);
 
-  const resetCard = () => {
-    setOffset({ x: 0, y: 0, rotation: 0 });
-    setOpacity(1);
+  useEffect(
+    () => () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    },
+    []
+  );
+
+  const applyTransform = (nextOffset = offsetRef.current) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const { x, y, rotation } = nextOffset;
+    card.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${rotation}deg)`;
+  };
+
+  const scheduleTransform = () => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      applyTransform();
+    });
+  };
+
+  const resetCard = ({ animate = true } = {}) => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    isDraggingRef.current = false;
+
+    if (!animate) {
+      card.style.transition = "none";
+    } else {
+      card.style.transition = "";
+    }
+
+    offsetRef.current = { x: 0, y: 0, rotation: 0 };
+    applyTransform({ x: 0, y: 0, rotation: 0 });
+    card.style.opacity = "1";
+    card.style.willChange = "";
+
+    if (!animate) {
+      requestAnimationFrame(() => {
+        if (cardRef.current) {
+          cardRef.current.style.transition = "";
+        }
+      });
+    }
+
     setHint(null);
   };
 
   const animateOut = async (direction) => {
-    if (isAnimatingOutRef.current) return;
+    const card = cardRef.current;
+    if (!card || isAnimatingOutRef.current) return;
 
     isAnimatingOutRef.current = true;
     const exit = CARD_EXIT_TRANSLATIONS[direction];
-    setOffset(exit);
-    setOpacity(0);
-    setHint(direction);
+    offsetRef.current = exit;
+    setHint((prev) => (prev === direction ? prev : direction));
+
+    card.style.transition = "";
+    card.style.willChange = "transform, opacity";
+    card.style.transform = `translate3d(${exit.x}px, ${exit.y}px, 0) rotate(${exit.rotation}deg)`;
+    card.style.opacity = "0";
 
     // Wait for animation to complete
     await new Promise(resolve => setTimeout(resolve, 280));
@@ -53,8 +109,12 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     } catch (error) {
       console.error(error);
       isAnimatingOutRef.current = false;
-      resetCard();
+      resetCard({ animate: true });
+      return;
     }
+
+    card.style.willChange = "";
+    isAnimatingOutRef.current = false;
   };
 
   useImperativeHandle(ref, () => ({
@@ -62,25 +122,31 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   }));
 
   const handlePointerDown = (event) => {
-    if (disabled) return;
-    setIsDragging(true);
+    if (disabled || isAnimatingOutRef.current) return;
+    isDraggingRef.current = true;
     startPositionRef.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    const card = cardRef.current;
+    if (card) {
+      card.style.transition = "none";
+      card.style.willChange = "transform";
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
   const handlePointerMove = (event) => {
-    if (!isDragging || disabled) return;
+    if (!isDraggingRef.current || disabled) return;
 
     const deltaX = event.clientX - startPositionRef.current.x;
     const deltaY = event.clientY - startPositionRef.current.y;
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    setOffset({
+    offsetRef.current = {
       x: deltaX,
       y: deltaY,
       rotation: deltaX * 0.05,
-    });
+    };
+    scheduleTransform();
 
     let nextHint = null;
     if (absX > absY && absX > 32) {
@@ -88,13 +154,21 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     } else if (deltaY < -48) {
       nextHint = "up";
     }
-    setHint(nextHint);
+    setHint((prev) => (prev === nextHint ? prev : nextHint));
   };
 
   const handlePointerUp = async (event) => {
-    if (!isDragging || disabled) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    setIsDragging(false);
+    if (!isDraggingRef.current || disabled) return;
+    isDraggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    const card = cardRef.current;
+    if (card) {
+      card.style.transition = "";
+      card.style.willChange = "";
+    }
 
     const deltaX = event.clientX - startPositionRef.current.x;
     const deltaY = event.clientY - startPositionRef.current.y;
@@ -111,7 +185,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     }
 
     if (!direction) {
-      resetCard();
+      resetCard({ animate: true });
       return;
     }
 
@@ -120,7 +194,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   useEffect(() => {
     isAnimatingOutRef.current = false;
-    resetCard();
+    resetCard({ animate: false });
   }, [email.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeHint = hint ? HINT_COPY[hint] : null;
@@ -129,15 +203,13 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   return (
     <article
+      ref={cardRef}
       className={cardClassName}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={{
-        transform: `translate3d(${offset.x}px, ${offset.y}px, 0) rotate(${offset.rotation}deg)`,
-        opacity: opacity,
-        transition: isDragging ? "none" : "transform 0.28s ease-in-out, opacity 0.28s ease-in-out, box-shadow 0.28s ease",
         cursor: disabled ? "default" : "grab",
       }}
       role="button"
@@ -355,7 +427,6 @@ function App() {
     <div className="dashboard">
       <aside className="dashboard__sidebar">
         <div className="sidebar__logo">
-          <span className="sidebar__mark" aria-hidden="true" />
           <div>
             <strong>SwipeMail</strong>
             <span className="sidebar__tag">Beta</span>
