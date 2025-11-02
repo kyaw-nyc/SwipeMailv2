@@ -246,7 +246,7 @@
   gap: 1.1rem;
   position: relative;
   will-change: transform;
-  transition: transform 0.28s ease-in-out, opacity 0.28s ease-in-out, box-shadow 0.28s ease;
+  transition: transform 0.18s ease-in-out, opacity 0.18s ease-in-out, box-shadow 0.18s ease;
   cursor: grab;
 }
 

@@ -43,15 +43,189 @@ const decodeBody = (payload) => {
   }
 };
 
-const sanitizeBody = (text) => {
+const escapeHtml = (value = "") =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const normalizePlainText = (text = "") =>
+  text
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const renderPlainTextAsHtml = (text = "") => {
   if (!text) return "";
   return text
-    .replace(/https?:\/\/\S+/gi, " ")
-    .replace(/=\r?\n/g, "")
-    .replace(/\s+/g, " ")
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .trim();
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
 };
+
+const ALLOWED_TAGS = new Set([
+  "a",
+  "abbr",
+  "b",
+  "blockquote",
+  "br",
+  "code",
+  "div",
+  "em",
+  "hr",
+  "i",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "span",
+  "strong",
+  "table",
+  "tbody",
+  "td",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+]);
+
+const ALLOWED_ATTRIBUTES = {
+  a: ["href", "title"],
+  td: ["colspan", "rowspan"],
+  th: ["colspan", "rowspan"],
+};
+
+const canUseDOMParser = typeof window !== "undefined" && typeof window.DOMParser !== "undefined";
+
+const sanitizeHtmlContent = (html) => {
+  if (!canUseDOMParser) {
+    return renderPlainTextAsHtml(normalizePlainText(html));
+  }
+
+  try {
+    const parser = new window.DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const { body } = doc;
+
+    if (!body) return "";
+
+    body.querySelectorAll("script, style, link, meta, title, iframe, object, embed, form").forEach((node) =>
+      node.remove()
+    );
+
+    const unwrapElement = (element) => {
+      const parent = element.parentNode;
+      if (!parent) {
+        element.remove();
+        return;
+      }
+      const fragment = doc.createDocumentFragment();
+      while (element.firstChild) {
+        fragment.appendChild(element.firstChild);
+      }
+      parent.replaceChild(fragment, element);
+    };
+
+    body.querySelectorAll("*").forEach((element) => {
+      const tag = element.tagName.toLowerCase();
+      if (!ALLOWED_TAGS.has(tag)) {
+        unwrapElement(element);
+        return;
+      }
+
+      const allowedAttrs = ALLOWED_ATTRIBUTES[tag] ?? [];
+      Array.from(element.attributes).forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        if (!allowedAttrs.includes(name)) {
+          element.removeAttribute(attr.name);
+          return;
+        }
+
+        if (name === "href") {
+          const value = attr.value?.trim() ?? "";
+          if (!value || /^javascript:/i.test(value) || /^data:/i.test(value)) {
+            element.removeAttribute(attr.name);
+            return;
+          }
+          element.setAttribute("target", "_blank");
+          element.setAttribute("rel", "noopener noreferrer");
+        }
+      });
+    });
+
+    return body.innerHTML;
+  } catch (error) {
+    console.warn("Failed to sanitize HTML email body", error);
+    return renderPlainTextAsHtml(normalizePlainText(html));
+  }
+};
+
+const extractTextContent = (html) => {
+  if (!html) return "";
+  if (!canUseDOMParser) {
+    return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  try {
+    const parser = new window.DOMParser();
+    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    return doc.body?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  } catch {
+    return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  }
+};
+
+const formatMessageBody = (rawBody, snippet) => {
+  const trimmedBody = rawBody?.trim() ?? "";
+  const fallbackSnippet = snippet ?? "";
+
+  if (trimmedBody) {
+    const looksLikeHtml = /<[^>]+>/.test(trimmedBody);
+    if (looksLikeHtml) {
+      const sanitizedHtml = sanitizeHtmlContent(trimmedBody);
+      const textContent = extractTextContent(sanitizedHtml);
+
+      if (sanitizedHtml) {
+        return {
+          html: sanitizedHtml,
+          text: textContent || normalizePlainText(fallbackSnippet),
+        };
+      }
+    }
+
+    const normalized = normalizePlainText(trimmedBody);
+    if (normalized) {
+      return {
+        html: renderPlainTextAsHtml(normalized),
+        text: normalized,
+      };
+    }
+  }
+
+  const normalizedSnippet = normalizePlainText(fallbackSnippet);
+  if (normalizedSnippet) {
+    return {
+      html: renderPlainTextAsHtml(normalizedSnippet),
+      text: normalizedSnippet,
+    };
+  }
+
+  return {
+    html: "<p>No preview available.</p>",
+    text: "",
+  };
+};
+
+const buildPreview = (text) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 420);
 
 const mapMessage = (message) => {
   const headers = message.payload?.headers ?? [];
@@ -60,8 +234,8 @@ const mapMessage = (message) => {
   const date = getHeaderValue(headers, "Date");
   const snippet = message.snippet ?? "";
   const body = decodeBody(message.payload);
-  const cleanedBody = sanitizeBody(body);
-  const preview = cleanedBody ? cleanedBody.slice(0, 420) : sanitizeBody(snippet).slice(0, 240);
+  const { html: formattedHtml, text: plainText } = formatMessageBody(body, snippet);
+  const preview = buildPreview(plainText || snippet);
 
   return {
     id: message.id,
@@ -69,7 +243,8 @@ const mapMessage = (message) => {
     subject,
     from,
     snippet,
-    body,
+    body: formattedHtml,
+    plainTextBody: plainText,
     preview,
     date,
     internalDate: Number(message.internalDate ?? Date.now()),

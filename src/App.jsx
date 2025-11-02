@@ -4,6 +4,8 @@ import { supabase } from "../supabaseClient";
 import SignInPage from "./pages/SignIn";
 import { archiveEmail, fetchRecentEmails, markAsRead, starEmail, GmailApiError } from "./lib/gmail";
 
+const CARD_EXIT_DURATION = 180;
+
 const CARD_EXIT_TRANSLATIONS = {
   right: { x: 640, y: 0, rotation: 12 },
   left: { x: -640, y: 0, rotation: -12 },
@@ -102,7 +104,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     card.style.opacity = "0";
 
     // Wait for animation to complete
-    await new Promise(resolve => setTimeout(resolve, 280));
+    await new Promise(resolve => setTimeout(resolve, CARD_EXIT_DURATION));
 
     try {
       await onSwipe(direction);
@@ -231,9 +233,10 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
         <time className="mail-card__date">{new Date(email.internalDate).toLocaleString()}</time>
       </header>
       <h3 className="mail-card__subject">{email.subject}</h3>
-      <div className="mail-card__body">
-        {email.body || email.snippet || "No preview available."}
-      </div>
+      <div
+        className="mail-card__body"
+        dangerouslySetInnerHTML={{ __html: email.body || "<p>No preview available.</p>" }}
+      />
     </article>
   );
 });
@@ -354,27 +357,58 @@ function App() {
     if (!currentEmail) return;
 
     setActiveAction(direction);
-    try {
-      if (direction === "left") {
-        await markAsRead(providerToken, currentEmail.id);
-      } else if (direction === "right") {
-        await archiveEmail(providerToken, currentEmail.id);
-      } else if (direction === "up") {
-        await starEmail(providerToken, currentEmail.id);
-      }
 
-      setEmails((prev) => prev.slice(1));
-      setActionFeedback({
-        key: `${currentEmail.id}-${direction}`,
-        ...ACTION_COPY[direction],
-        email: currentEmail,
-      });
-    } catch (err) {
-      console.error(err);
-      setError("We couldn’t update Gmail. Please refresh and try again.");
-    } finally {
-      setActiveAction(null);
-    }
+    const feedbackKey = `${currentEmail.id}-${direction}`;
+
+    setEmails((prev) => {
+      if (!prev.length) return prev;
+      if (prev[0]?.id === currentEmail.id) {
+        return prev.slice(1);
+      }
+      return prev.filter((email) => email.id !== currentEmail.id);
+    });
+
+    setActionFeedback({
+      key: feedbackKey,
+      ...ACTION_COPY[direction],
+      email: currentEmail,
+    });
+
+    setActiveAction(null);
+
+    (async () => {
+      try {
+        if (direction === "left") {
+          await markAsRead(providerToken, currentEmail.id);
+        } else if (direction === "right") {
+          await archiveEmail(providerToken, currentEmail.id);
+        } else if (direction === "up") {
+          await starEmail(providerToken, currentEmail.id);
+        }
+      } catch (err) {
+        console.error(err);
+
+        if (err instanceof GmailApiError && err.status === 403) {
+          setNeedsGoogleReauth(true);
+          setError(
+            "Google blocked the request because this account hasn’t granted Gmail access to SwipeMail yet."
+          );
+        } else if (err instanceof GmailApiError && err.status === 401) {
+          setNeedsGoogleReauth(true);
+          setError("Your Google session expired. Please reconnect Gmail.");
+        } else {
+          setError("We couldn’t update Gmail. Please refresh and try again.");
+        }
+
+        setActionFeedback((prev) => (prev?.key === feedbackKey ? null : prev));
+        setEmails((prev) => {
+          if (prev.some((email) => email.id === currentEmail.id)) {
+            return prev;
+          }
+          return [currentEmail, ...prev];
+        });
+      }
+    })();
   };
 
   const reconnectGmail = async () => {
