@@ -612,6 +612,10 @@
   color: rgba(248, 250, 252, 0.85);
 }
 
+.stage__mobile-info {
+  display: none;
+}
+
 .stage__error {
   border: 1px solid rgba(239, 68, 68, 0.25);
   background: rgba(248, 113, 113, 0.14);
@@ -757,6 +761,17 @@
     padding: 1.6rem 1.1rem 2.4rem;
   }
 
+  .stage__mobile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    margin: 0 0 1.6rem;
+    padding: 1.4rem 1.2rem;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 24px;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  }
+
   .stage__header {
     text-align: center;
     gap: 0.65rem;
@@ -780,17 +795,11 @@
   }
 
   .stage__deck-queue {
-    width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 0.85rem;
-    padding: 0.25rem 0 0.5rem;
+    display: none;
   }
 
   .stage__queue-label {
-    flex: 0 0 auto;
-    font-size: 0.8rem;
-    color: #6b7280;
+    display: none;
   }
 
   .stage__feedback {
@@ -834,6 +843,66 @@
     text-align: center;
   }
 
+  .stage__mobile-summary.sidebar__summary {
+    text-align: left;
+    gap: 1.1rem;
+  }
+
+  .stage__mobile-summary.sidebar__summary h2 {
+    text-align: center;
+    font-size: 1.4rem;
+  }
+
+  .stage__mobile-summary.sidebar__summary p {
+    text-align: center;
+    margin-bottom: 0.6rem;
+  }
+
+  .stage__mobile-summary.sidebar__summary ul {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .stage__mobile-summary.sidebar__summary li {
+    background: rgba(15, 23, 42, 0.05);
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+  }
+
+  .stage__mobile-summary .sidebar__keyboard-note {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .stage__mobile-labels.sidebar__labels {
+    gap: 1.1rem;
+  }
+
+  .stage__mobile-labels .sidebar__labels-header {
+    justify-content: center;
+  }
+
+  .stage__mobile-labels .sidebar__labels-list {
+    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .stage__mobile-labels .sidebar__label {
+    justify-content: center;
+    border-radius: 16px;
+    padding: 0.65rem;
+  }
+
+  .stage__mobile-labels .sidebar__label-dot {
+    display: inline-flex;
+  }
+
   .dashboard__sidebar {
     border-top: 1px solid rgba(15, 23, 42, 0.08);
     border-bottom: none;
@@ -842,6 +911,11 @@
     padding: 1.8rem 1.2rem 2.4rem;
     box-shadow: none;
     gap: 1.8rem;
+  }
+
+  .dashboard__sidebar .sidebar__summary,
+  .dashboard__sidebar .sidebar__labels {
+    display: none;
   }
 
   .sidebar__logo {

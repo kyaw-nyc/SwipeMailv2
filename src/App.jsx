@@ -33,6 +33,76 @@ const HINT_COPY = {
   up: { label: "Star", sub: "Swipe up" },
 };
 
+const SummarySection = ({ className = "" }) => (
+  <div className={`sidebar__summary${className ? ` ${className}` : ""}`}>
+    <h2>Inbox Flow</h2>
+    <p>
+      Swipe through your latest emails. Archive with a flick right, mark read with a flick left,
+      star important threads by swiping up.
+    </p>
+    <ul>
+      <li>
+        <span className="sidebar__bullet sidebar__bullet--right" />
+        Swipe right → Archive
+      </li>
+      <li>
+        <span className="sidebar__bullet sidebar__bullet--left" />
+        Swipe left → Mark read
+      </li>
+      <li>
+        <span className="sidebar__bullet sidebar__bullet--up" />
+        Swipe up → Star
+      </li>
+    </ul>
+    <p className="sidebar__keyboard-note">Tip: Arrow keys work too.</p>
+  </div>
+);
+
+const LabelsPanel = ({
+  className = "",
+  labelOptions,
+  selectedLabelId,
+  onSelect,
+  isLoadingLabels,
+  labelsError,
+  isLoadingEmails,
+}) => (
+  <div className={`sidebar__labels${className ? ` ${className}` : ""}`}>
+    <div className="sidebar__labels-header">
+      <h3>Labels</h3>
+      {isLoadingLabels ? <span className="sidebar__labels-status">Loading…</span> : null}
+    </div>
+    {labelsError ? (
+      <div className="sidebar__labels-error">{labelsError}</div>
+    ) : labelOptions.length ? (
+      <ul className="sidebar__labels-list">
+        {labelOptions.map((label) => {
+          const isActive = selectedLabelId === label.id || (!selectedLabelId && label.id === null);
+          const dotType = label.type ?? (label.id ? "system" : "virtual");
+          return (
+            <li key={label.id ?? "__unread"}>
+              <button
+                type="button"
+                className={`sidebar__label${isActive ? " sidebar__label--active" : ""}`.trim()}
+                onClick={() => onSelect(label.id)}
+                disabled={isLoadingEmails && isActive}
+              >
+                <span
+                  className={`sidebar__label-dot sidebar__label-dot--${dotType}`}
+                  aria-hidden="true"
+                />
+                <span>{label.displayName}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    ) : (
+      !isLoadingLabels && <div className="sidebar__labels-empty">No labels found.</div>
+    )}
+  </div>
+);
+
 const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const [hint, setHint] = useState(null);
   const cardRef = useRef(null);
@@ -43,6 +113,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const isAnimatingOutRef = useRef(false);
   const onSwipeRef = useRef(onSwipe);
   const disabledRef = useRef(disabled);
+  const pointerIdRef = useRef(null);
 
   useEffect(() => {
     onSwipeRef.current = onSwipe;
@@ -151,6 +222,8 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   const handlePointerDown = useCallback((event) => {
     if (disabledRef.current || isAnimatingOutRef.current) return;
+    if (pointerIdRef.current !== null) return;
+    pointerIdRef.current = event.pointerId;
     isDraggingRef.current = true;
     startPositionRef.current = { x: event.clientX, y: event.clientY };
     const card = cardRef.current;
@@ -164,12 +237,17 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   const handlePointerMove = useCallback((event) => {
     if (!isDraggingRef.current || disabledRef.current) return;
+    if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
     event.preventDefault();
 
     const deltaX = event.clientX - startPositionRef.current.x;
     const deltaY = event.clientY - startPositionRef.current.y;
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
+
+    if (absX < 6 && absY < 6) {
+      return;
+    }
 
     offsetRef.current = {
       x: deltaX,
@@ -189,6 +267,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   const handlePointerUp = useCallback(async (event) => {
     if (!isDraggingRef.current || disabledRef.current) return;
+    if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
     isDraggingRef.current = false;
     const card = cardRef.current;
     if (card?.hasPointerCapture?.(event.pointerId)) {
@@ -216,10 +295,12 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
     if (!direction) {
       resetCard({ animate: true });
+      pointerIdRef.current = null;
       return;
     }
 
     await animateOut(direction);
+    pointerIdRef.current = null;
   }, [animateOut]);
 
   useEffect(() => {
@@ -570,59 +651,15 @@ function App() {
           </div>
         </div>
 
-        <div className="sidebar__summary">
-          <h2>Inbox Flow</h2>
-          <p>
-            Swipe through your latest emails. Archive with a flick right, mark read with a
-            flick left, star important threads by swiping up.
-          </p>
-          <ul>
-            <li>
-              <span className="sidebar__bullet sidebar__bullet--right" />
-              Swipe right → Archive
-            </li>
-            <li>
-              <span className="sidebar__bullet sidebar__bullet--left" />
-              Swipe left → Mark read
-            </li>
-            <li>
-              <span className="sidebar__bullet sidebar__bullet--up" />
-              Swipe up → Star
-            </li>
-          </ul>
-          <p className="sidebar__keyboard-note">Tip: Arrow keys work too.</p>
-        </div>
-
-        <div className="sidebar__labels">
-          <div className="sidebar__labels-header">
-            <h3>Labels</h3>
-            {isLoadingLabels ? <span className="sidebar__labels-status">Loading…</span> : null}
-          </div>
-          {labelsError ? (
-            <div className="sidebar__labels-error">{labelsError}</div>
-          ) : labelOptions.length ? (
-            <ul className="sidebar__labels-list">
-              {labelOptions.map((label) => {
-                const isActive = selectedLabelId === label.id || (!selectedLabelId && label.id === null);
-                return (
-                  <li key={label.id ?? "__unread"}>
-                    <button
-                      type="button"
-                      className={`sidebar__label ${isActive ? "sidebar__label--active" : ""}`.trim()}
-                      onClick={() => handleLabelSelect(label.id)}
-                      disabled={isLoadingEmails && isActive}
-                    >
-                      <span className={`sidebar__label-dot sidebar__label-dot--${label.type}`} aria-hidden="true" />
-                      <span>{label.displayName}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            !isLoadingLabels && <div className="sidebar__labels-empty">No labels found.</div>
-          )}
-        </div>
+        <SummarySection />
+        <LabelsPanel
+          labelOptions={labelOptions}
+          selectedLabelId={selectedLabelId}
+          onSelect={handleLabelSelect}
+          isLoadingLabels={isLoadingLabels}
+          labelsError={labelsError}
+          isLoadingEmails={isLoadingEmails}
+        />
 
         <div className="sidebar__footer">
           <button
@@ -651,6 +688,18 @@ function App() {
       </aside>
 
       <main className="dashboard__stage">
+        <div className="stage__mobile-info">
+          <SummarySection className="stage__mobile-summary" />
+          <LabelsPanel
+            className="stage__mobile-labels"
+            labelOptions={labelOptions}
+            selectedLabelId={selectedLabelId}
+            onSelect={handleLabelSelect}
+            isLoadingLabels={isLoadingLabels}
+            labelsError={labelsError}
+            isLoadingEmails={isLoadingEmails}
+          />
+        </div>
         <header className="stage__header">
           <div>
             <h1>Latest mail</h1>
