@@ -51,8 +51,14 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const stripZeroWidth = (value = "") =>
+  value
+    .replace(/&(zwj|zwnj);/gi, "")
+    .replace(/&#820[45];/g, "")
+    .replace(/[\u200b-\u200f\uFEFF]+/g, "");
+
 const normalizePlainText = (text = "") =>
-  text
+  stripZeroWidth(text)
     .replace(/\r\n/g, "\n")
     .replace(/\u00a0/g, " ")
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
@@ -62,7 +68,7 @@ const normalizePlainText = (text = "") =>
 
 const renderPlainTextAsHtml = (text = "") => {
   if (!text) return "";
-  return text
+  return stripZeroWidth(text)
     .split(/\n{2,}/)
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
     .join("");
@@ -194,7 +200,7 @@ const sanitizeHtmlContent = (html) => {
       });
     });
 
-    return body.innerHTML;
+    return stripZeroWidth(body.innerHTML);
   } catch (error) {
     console.warn("Failed to sanitize HTML email body", error);
     return renderPlainTextAsHtml(normalizePlainText(html));
@@ -360,7 +366,11 @@ const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], quer
 };
 
 export const fetchRecentEmails = (accessToken, maxResults = 50) =>
-  fetchMessages(accessToken, { maxResults, labelIds: ["INBOX", "UNREAD"] });
+  fetchMessages(accessToken, {
+    maxResults,
+    labelIds: ["INBOX", "UNREAD"],
+    query: "-category:promotions",
+  });
 
 export const fetchEmailsByLabel = (accessToken, labelId, maxResults = 50) => {
   if (!labelId) {
@@ -389,7 +399,6 @@ export const fetchLabels = async (accessToken) => {
       "YELLOW_STAR",
       "CATEGORY_PERSONAL",
       "CATEGORY_SOCIAL",
-      "CATEGORY_PROMOTIONS",
       "CATEGORY_UPDATES",
       "CATEGORY_FORUMS",
       "CATEGORY_PURCHASES",
@@ -405,11 +414,23 @@ export const fetchLabels = async (accessToken) => {
       IMPORTANT: "Important",
       UNREAD: "Unread",
       SNOOZED: "Snoozed",
+      CATEGORY_PRIMARY: "Primary",
+      CATEGORY_PROMOTIONS: "Promotions",
+      CATEGORY_SOCIAL: "Social",
+      CATEGORY_UPDATES: "Updates",
+      CATEGORY_FORUMS: "Forums",
     };
 
+    const alwaysIncludeLabels = new Set(["CATEGORY_PROMOTIONS"]);
+
     return labels
-      .filter((label) => label.labelListVisibility !== "labelHide")
-      .filter((label) => label.type === "user" || !hiddenSystemLabels.has(label.id))
+      .filter((label) =>
+        alwaysIncludeLabels.has(label.id) || label.labelListVisibility !== "labelHide"
+      )
+      .filter(
+        (label) =>
+          label.type === "user" || alwaysIncludeLabels.has(label.id) || !hiddenSystemLabels.has(label.id)
+      )
       .map((label) => ({
         id: label.id,
         name: label.name,
