@@ -5,6 +5,8 @@ import SignInPage from "./pages/SignIn";
 import {
   archiveEmail,
   fetchRecentEmails,
+  fetchEmailsByLabel,
+  fetchLabels,
   markAsRead,
   starEmail,
   GmailApiError,
@@ -299,6 +301,10 @@ function App() {
   const [activeAction, setActiveAction] = useState(null);
   const [actionFeedback, setActionFeedback] = useState(null);
   const [needsGoogleReauth, setNeedsGoogleReauth] = useState(false);
+  const [labels, setLabels] = useState([]);
+  const [isLoadingLabels, setIsLoadingLabels] = useState(false);
+  const [labelsError, setLabelsError] = useState(null);
+  const [selectedLabelId, setSelectedLabelId] = useState(null);
   const swipeCardRef = useRef(null);
 
   const providerToken = session?.provider_token;
@@ -316,6 +322,36 @@ function App() {
     }
     return email.charAt(0).toUpperCase();
   }, [session?.user?.email]);
+
+  const labelOptions = useMemo(
+    () => [{ id: null, displayName: "Unread Inbox", type: "virtual" }, ...labels],
+    [labels]
+  );
+
+  useEffect(() => {
+    if (!providerToken) {
+      setLabels([]);
+      setSelectedLabelId(null);
+      setIsLoadingLabels(false);
+      setLabelsError(null);
+      return;
+    }
+
+    setIsLoadingLabels(true);
+    setLabelsError(null);
+
+    fetchLabels(providerToken)
+      .then((fetchedLabels) => {
+        setLabels(fetchedLabels);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLabelsError("We couldn’t load your Gmail labels.");
+      })
+      .finally(() => {
+        setIsLoadingLabels(false);
+      });
+  }, [providerToken]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -341,15 +377,18 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadEmails = useMemo(
-    () => async () => {
+  const loadEmails = useCallback(
+    async (labelId = null) => {
       if (!providerToken) {
         setNeedsGoogleReauth(true);
         return;
       }
+
+      const effectiveLabelId = labelId ?? null;
       setIsLoadingEmails(true);
       setError(null);
       setNeedsGoogleReauth(false);
+
       if (!profile?.avatarUrl && session?.user?.identities?.length) {
         const googleIdentity = session.user.identities.find(
           (identity) => identity.provider === "google"
@@ -358,9 +397,15 @@ function App() {
           setProfile({ avatarUrl: googleIdentity.identity_data.avatar_url });
         }
       }
+
       try {
-        const data = await fetchRecentEmails(providerToken, 50);
+        const data = effectiveLabelId
+          ? await fetchEmailsByLabel(providerToken, effectiveLabelId, 50)
+          : await fetchRecentEmails(providerToken, 50);
         setEmails(data);
+        setSelectedLabelId((current) =>
+          current === effectiveLabelId ? current : effectiveLabelId
+        );
       } catch (err) {
         console.error(err);
         if (err instanceof GmailApiError && err.status === 403) {
@@ -380,18 +425,29 @@ function App() {
         setIsLoadingEmails(false);
       }
     },
-    [providerToken]
+    [providerToken, profile?.avatarUrl, session]
   );
 
   useEffect(() => {
+    if (!providerToken) return;
     loadEmails();
-  }, [loadEmails]);
+  }, [providerToken, loadEmails]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setEmails([]);
     setNeedsGoogleReauth(false);
+    setLabels([]);
+    setSelectedLabelId(null);
+    setLabelsError(null);
   };
+
+  const handleLabelSelect = useCallback(
+    (labelId) => {
+      loadEmails(labelId ?? null);
+    },
+    [loadEmails]
+  );
 
   const handleSwipe = async (direction) => {
     if (!providerToken) {
@@ -537,11 +593,42 @@ function App() {
           <p className="sidebar__keyboard-note">Tip: Arrow keys work too.</p>
         </div>
 
+        <div className="sidebar__labels">
+          <div className="sidebar__labels-header">
+            <h3>Labels</h3>
+            {isLoadingLabels ? <span className="sidebar__labels-status">Loading…</span> : null}
+          </div>
+          {labelsError ? (
+            <div className="sidebar__labels-error">{labelsError}</div>
+          ) : labelOptions.length ? (
+            <ul className="sidebar__labels-list">
+              {labelOptions.map((label) => {
+                const isActive = selectedLabelId === label.id || (!selectedLabelId && label.id === null);
+                return (
+                  <li key={label.id ?? "__unread"}>
+                    <button
+                      type="button"
+                      className={`sidebar__label ${isActive ? "sidebar__label--active" : ""}`.trim()}
+                      onClick={() => handleLabelSelect(label.id)}
+                      disabled={isLoadingEmails && isActive}
+                    >
+                      <span className={`sidebar__label-dot sidebar__label-dot--${label.type}`} aria-hidden="true" />
+                      <span>{label.displayName}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            !isLoadingLabels && <div className="sidebar__labels-empty">No labels found.</div>
+          )}
+        </div>
+
         <div className="sidebar__footer">
           <button
             className="sidebar__reload"
             type="button"
-            onClick={loadEmails}
+            onClick={() => loadEmails(selectedLabelId ?? null)}
             disabled={isLoadingEmails}
           >
             {isLoadingEmails ? "Refreshing…" : "Refresh inbox"}
@@ -583,7 +670,11 @@ function App() {
                 Grant Gmail access
               </button>
             ) : (
-              <button type="button" onClick={loadEmails} disabled={isLoadingEmails}>
+              <button
+                type="button"
+                onClick={() => loadEmails(selectedLabelId ?? null)}
+                disabled={isLoadingEmails}
+              >
                 Try again
               </button>
             )}

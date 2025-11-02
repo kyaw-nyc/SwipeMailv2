@@ -328,15 +328,20 @@ const gmailMutate = async (accessToken, endpoint, body) => {
   return response.json();
 };
 
-export const fetchRecentEmails = async (accessToken, maxResults = 50) => {
+const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], query } = {}) => {
   if (!accessToken) {
     throw new Error("Missing Google access token");
   }
 
-  const listResponse = await gmailFetch(
-    accessToken,
-    `/messages?maxResults=${maxResults}&labelIds=INBOX&labelIds=UNREAD`
-  );
+  const labelQuery = labelIds
+    .filter(Boolean)
+    .map((labelId) => `labelIds=${encodeURIComponent(labelId)}`)
+    .join("&");
+  const searchQuery = query ? `&q=${encodeURIComponent(query)}` : "";
+  const base = `/messages?maxResults=${maxResults}`;
+  const listEndpoint = `${base}${labelQuery ? `&${labelQuery}` : ""}${searchQuery}`;
+
+  const listResponse = await gmailFetch(accessToken, listEndpoint);
 
   const messageIds = listResponse.messages ?? [];
   if (messageIds.length === 0) return [];
@@ -352,6 +357,74 @@ export const fetchRecentEmails = async (accessToken, maxResults = 50) => {
     .filter((result) => result.status === "fulfilled")
     .map((result) => mapMessage(result.value))
     .sort((a, b) => b.internalDate - a.internalDate);
+};
+
+export const fetchRecentEmails = (accessToken, maxResults = 50) =>
+  fetchMessages(accessToken, { maxResults, labelIds: ["INBOX", "UNREAD"] });
+
+export const fetchEmailsByLabel = (accessToken, labelId, maxResults = 50) => {
+  if (!labelId) {
+    throw new Error("Missing label identifier");
+  }
+  return fetchMessages(accessToken, { maxResults, labelIds: [labelId] });
+};
+
+export const fetchLabels = async (accessToken) => {
+    if (!accessToken) {
+      throw new Error("Missing Google access token");
+    }
+
+    const response = await gmailFetch(accessToken, "/labels");
+    const labels = response.labels ?? [];
+
+    const hiddenSystemLabels = new Set([
+      "CHAT",
+      "DRAFT",
+      "SENT",
+      "SPAM",
+      "TRASH",
+      "INBOX",
+      "STARRED",
+      "UNREAD",
+      "YELLOW_STAR",
+      "CATEGORY_PERSONAL",
+      "CATEGORY_SOCIAL",
+      "CATEGORY_PROMOTIONS",
+      "CATEGORY_UPDATES",
+      "CATEGORY_FORUMS",
+      "CATEGORY_PURCHASES",
+      "CATEGORY_FINANCE",
+      "CATEGORY_TRAVEL",
+      "CATEGORY_NOTIFICATIONS",
+      "CATEGORY_PRIMARY",
+    ]);
+
+    const systemLabelNames = {
+      INBOX: "Inbox",
+      STARRED: "Starred",
+      IMPORTANT: "Important",
+      UNREAD: "Unread",
+      SNOOZED: "Snoozed",
+    };
+
+    return labels
+      .filter((label) => label.labelListVisibility !== "labelHide")
+      .filter((label) => label.type === "user" || !hiddenSystemLabels.has(label.id))
+      .map((label) => ({
+        id: label.id,
+        name: label.name,
+        type: label.type,
+        displayName:
+          label.type === "system"
+            ? systemLabelNames[label.id] ?? label.name ?? label.id
+            : label.name ?? label.id,
+      }))
+      .sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === "system" ? -1 : 1;
+        }
+        return a.displayName.localeCompare(b.displayName);
+      });
 };
 
 export const markAsRead = (accessToken, messageId) =>
