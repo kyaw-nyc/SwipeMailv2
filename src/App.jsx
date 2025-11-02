@@ -642,11 +642,35 @@ function App() {
   }
 
   return (
-    <div className="dashboard">
-      <aside className="dashboard__sidebar">
-        <div className="sidebar__logo">
-          <div>
+    <>
+      <div className="mobile-notice">
+        <div className="mobile-notice__panel">
+          <div className="mobile-notice__logo">
             <strong>SwipeMail</strong>
+            <span className="mobile-notice__chip">Beta</span>
+          </div>
+          <h1>Desktop Experience Only</h1>
+          <p>
+            SwipeMail is designed for large screens so you can triage Gmail with full keyboard and
+            pointer controls. Please open this app on your laptop or desktop browser to keep
+            swiping.
+          </p>
+          <button
+            className="mobile-notice__cta"
+            type="button"
+            onClick={() => {
+              window.location.href = "mailto:?subject=SwipeMail%20link&body=" + encodeURIComponent(window.location.href);
+            }}
+          >
+            Email this link to yourself
+          </button>
+        </div>
+      </div>
+      <div className="dashboard">
+        <aside className="dashboard__sidebar">
+          <div className="sidebar__logo">
+            <div>
+              <strong>SwipeMail</strong>
             <span className="sidebar__tag">Beta</span>
           </div>
         </div>
@@ -790,7 +814,8 @@ function App() {
           </div>
         ) : null}
       </main>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -12,6 +12,83 @@
   overflow: hidden;
 }
 
+.mobile-notice {
+  display: none;
+  min-height: 100vh;
+  width: 100%;
+  background: radial-gradient(circle at top, rgba(79, 70, 229, 0.15), rgba(15, 23, 42, 0.92));
+  color: #f9fafb;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem clamp(1.5rem, 6vw, 3rem);
+  text-align: center;
+}
+
+.mobile-notice__panel {
+  max-width: 420px;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 0 40px 90px rgba(15, 23, 42, 0.55);
+  border-radius: 28px;
+  padding: 2.4rem clamp(1.6rem, 6vw, 2.6rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.mobile-notice__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.mobile-notice__logo strong {
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.mobile-notice__chip {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+}
+
+.mobile-notice h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 6vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mobile-notice p {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.mobile-notice__cta {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: #e2e8f0;
+  font-weight: 600;
+  padding: 0.75rem 1.8rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.mobile-notice__cta:hover {
+  transform: translateY(-1px);
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .dashboard__sidebar {
   grid-area: sidebar;
   background: rgba(255, 255, 255, 0.85);
@@ -752,221 +829,12 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1400px) {
   .dashboard {
-    background: #f4f5f7;
+    display: none;
   }
 
-  .dashboard__stage {
-    padding: 1.6rem 1.1rem 2.4rem;
-  }
-
-  .stage__mobile-info {
+  .mobile-notice {
     display: flex;
-    flex-direction: column;
-    gap: 1.75rem;
-    margin: 0 0 1.6rem;
-    padding: 1.4rem 1.2rem;
-    background: rgba(255, 255, 255, 0.85);
-    border-radius: 24px;
-    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
-  }
-
-  .stage__header {
-    text-align: center;
-    gap: 0.65rem;
-  }
-
-  .stage__deck {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    min-height: auto;
-  }
-
-  .stage__deck-surface {
-    width: 100%;
-    min-height: auto;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    align-items: stretch;
-  }
-
-  .stage__deck-queue {
-    display: none;
-  }
-
-  .stage__queue-label {
-    display: none;
-  }
-
-  .stage__feedback {
-    position: static;
-    margin-top: 1.5rem;
-  }
-
-  .mail-card {
-    width: 100%;
-    min-height: unset;
-    border-radius: 20px;
-    padding: 1.2rem;
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-    gap: 0.9rem;
-  }
-
-  .mail-card__header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-  }
-
-  .mail-card__date {
-    font-size: 0.7rem;
-  }
-
-  .mail-card__subject {
-    font-size: 1.2rem;
-  }
-
-  .mail-card__body {
-    max-height: 55vh;
-    padding-right: 0.6rem;
-  }
-
-  .mail-card__hint {
-    top: 0.75rem;
-  }
-
-  .mail-card__footer {
-    text-align: center;
-  }
-
-  .stage__mobile-summary.sidebar__summary {
-    text-align: left;
-    gap: 1.1rem;
-  }
-
-  .stage__mobile-summary.sidebar__summary h2 {
-    text-align: center;
-    font-size: 1.4rem;
-  }
-
-  .stage__mobile-summary.sidebar__summary p {
-    text-align: center;
-    margin-bottom: 0.6rem;
-  }
-
-  .stage__mobile-summary.sidebar__summary ul {
-    flex-direction: row;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 0.9rem;
-  }
-
-  .stage__mobile-summary.sidebar__summary li {
-    background: rgba(15, 23, 42, 0.05);
-    padding: 0.45rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.82rem;
-  }
-
-  .stage__mobile-summary .sidebar__keyboard-note {
-    text-align: center;
-    font-size: 0.75rem;
-    color: #6b7280;
-  }
-
-  .stage__mobile-labels.sidebar__labels {
-    gap: 1.1rem;
-  }
-
-  .stage__mobile-labels .sidebar__labels-header {
-    justify-content: center;
-  }
-
-  .stage__mobile-labels .sidebar__labels-list {
-    flex-wrap: nowrap;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .stage__mobile-labels .sidebar__label {
-    justify-content: center;
-    border-radius: 16px;
-    padding: 0.65rem;
-  }
-
-  .stage__mobile-labels .sidebar__label-dot {
-    display: inline-flex;
-  }
-
-  .dashboard__sidebar {
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-    border-bottom: none;
-    border-right: none;
-    background: rgba(255, 255, 255, 0.92);
-    padding: 1.8rem 1.2rem 2.4rem;
-    box-shadow: none;
-    gap: 1.8rem;
-  }
-
-  .dashboard__sidebar .sidebar__summary,
-  .dashboard__sidebar .sidebar__labels {
-    display: none;
-  }
-
-  .sidebar__logo {
-    justify-content: center;
-  }
-
-  .sidebar__summary {
-    text-align: center;
-  }
-
-  .sidebar__labels {
-    width: 100%;
-  }
-
-  .sidebar__labels-list {
-    max-height: none;
-    flex-wrap: wrap;
-    row-gap: 0.75rem;
-  }
-
-  .sidebar__label {
-    justify-content: center;
-  }
-
-  .sidebar__label-dot {
-    display: none;
-  }
-
-  .sidebar__summary ul {
-    align-items: center;
-  }
-
-  .queue-card {
-    min-width: 160px;
-    flex: 0 0 160px;
-    padding: 0.9rem 1rem;
-  }
-
-  .sidebar__footer {
-    width: 100%;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  .sidebar__reload,
-  .sidebar__signout {
-    width: 100%;
-  }
-
-  .sidebar__user {
-    justify-content: center;
-    flex-wrap: wrap;
   }
 }
