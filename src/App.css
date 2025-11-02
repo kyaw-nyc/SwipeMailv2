@@ -248,6 +248,11 @@
   will-change: transform;
   transition: transform 0.18s ease-in-out, opacity 0.18s ease-in-out, box-shadow 0.18s ease;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  contain: layout paint;
+  backface-visibility: hidden;
 }
 
 .mail-card__hint {

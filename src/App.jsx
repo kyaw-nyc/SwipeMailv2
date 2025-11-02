@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, useCallback } from "react";
 import "./App.css";
 import { supabase } from "../supabaseClient";
 import SignInPage from "./pages/SignIn";
@@ -32,6 +32,20 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const rafRef = useRef(null);
   const isDraggingRef = useRef(false);
   const isAnimatingOutRef = useRef(false);
+  const onSwipeRef = useRef(onSwipe);
+  const disabledRef = useRef(disabled);
+
+  useEffect(() => {
+    onSwipeRef.current = onSwipe;
+  }, [onSwipe]);
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+    const card = cardRef.current;
+    if (card) {
+      card.style.cursor = disabled ? "default" : "grab";
+    }
+  }, [disabled]);
 
   useEffect(
     () => () => {
@@ -89,7 +103,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     setHint(null);
   };
 
-  const animateOut = async (direction) => {
+  const animateOut = useCallback(async (direction) => {
     const card = cardRef.current;
     if (!card || isAnimatingOutRef.current) return;
 
@@ -107,7 +121,10 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     await new Promise(resolve => setTimeout(resolve, CARD_EXIT_DURATION));
 
     try {
-      await onSwipe(direction);
+      const handler = onSwipeRef.current;
+      if (handler) {
+        await handler(direction);
+      }
     } catch (error) {
       console.error(error);
       isAnimatingOutRef.current = false;
@@ -117,26 +134,28 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
     card.style.willChange = "";
     isAnimatingOutRef.current = false;
-  };
+  }, []);
 
   useImperativeHandle(ref, () => ({
     triggerSwipe: animateOut,
   }));
 
-  const handlePointerDown = (event) => {
-    if (disabled || isAnimatingOutRef.current) return;
+  const handlePointerDown = useCallback((event) => {
+    if (disabledRef.current || isAnimatingOutRef.current) return;
     isDraggingRef.current = true;
     startPositionRef.current = { x: event.clientX, y: event.clientY };
     const card = cardRef.current;
     if (card) {
       card.style.transition = "none";
       card.style.willChange = "transform";
+      card.setPointerCapture?.(event.pointerId);
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
+    event.preventDefault();
+  }, []);
 
-  const handlePointerMove = (event) => {
-    if (!isDraggingRef.current || disabled) return;
+  const handlePointerMove = useCallback((event) => {
+    if (!isDraggingRef.current || disabledRef.current) return;
+    event.preventDefault();
 
     const deltaX = event.clientX - startPositionRef.current.x;
     const deltaY = event.clientY - startPositionRef.current.y;
@@ -157,16 +176,16 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
       nextHint = "up";
     }
     setHint((prev) => (prev === nextHint ? prev : nextHint));
-  };
+  }, []);
 
-  const handlePointerUp = async (event) => {
-    if (!isDraggingRef.current || disabled) return;
+  const handlePointerUp = useCallback(async (event) => {
+    if (!isDraggingRef.current || disabledRef.current) return;
     isDraggingRef.current = false;
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    const card = cardRef.current;
+    if (card?.hasPointerCapture?.(event.pointerId)) {
+      card.releasePointerCapture?.(event.pointerId);
     }
 
-    const card = cardRef.current;
     if (card) {
       card.style.transition = "";
       card.style.willChange = "";
@@ -192,7 +211,28 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     }
 
     await animateOut(direction);
-  };
+  }, [animateOut]);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return undefined;
+
+    const listenerOptions = { passive: false };
+
+    card.addEventListener("pointerdown", handlePointerDown, listenerOptions);
+    card.addEventListener("pointermove", handlePointerMove, listenerOptions);
+    card.addEventListener("pointerup", handlePointerUp, listenerOptions);
+    card.addEventListener("pointercancel", handlePointerUp, listenerOptions);
+    card.addEventListener("pointerleave", handlePointerUp, listenerOptions);
+
+    return () => {
+      card.removeEventListener("pointerdown", handlePointerDown, listenerOptions);
+      card.removeEventListener("pointermove", handlePointerMove, listenerOptions);
+      card.removeEventListener("pointerup", handlePointerUp, listenerOptions);
+      card.removeEventListener("pointercancel", handlePointerUp, listenerOptions);
+      card.removeEventListener("pointerleave", handlePointerUp, listenerOptions);
+    };
+  }, [handlePointerDown, handlePointerMove, handlePointerUp]);
 
   useEffect(() => {
     isAnimatingOutRef.current = false;
@@ -207,10 +247,6 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     <article
       ref={cardRef}
       className={cardClassName}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
       style={{
         cursor: disabled ? "default" : "grab",
       }}
