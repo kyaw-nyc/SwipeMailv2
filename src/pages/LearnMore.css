@@ -95,7 +95,7 @@
 .learn-more-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding-bottom: clamp(4rem, 8vw, 7rem);
+  padding-bottom: clamp(2rem, 4vw, 3rem);
 }
 
 .learn-more-hero-title {

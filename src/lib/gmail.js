@@ -359,6 +359,11 @@ const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], quer
 
   const detailedMessages = await Promise.allSettled(detailPromises);
 
+  const failed = detailedMessages.filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    console.warn(`Failed to fetch ${failed.length} out of ${messageIds.length} emails:`, failed);
+  }
+
   return detailedMessages
     .filter((result) => result.status === "fulfilled")
     .map((result) => mapMessage(result.value))

@@ -223,6 +223,26 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const handlePointerDown = useCallback((event) => {
     if (disabledRef.current || isAnimatingOutRef.current) return;
     if (pointerIdRef.current !== null) return;
+
+    // Check what was clicked
+    const target = event.target;
+    const isLink = target.tagName === 'A' || target.closest('a');
+    const isInBody = target.closest('.mail-card__body');
+
+    // Don't interfere with links at all
+    if (isLink) {
+      return;
+    }
+
+    // Don't allow dragging from the body area at all (for text selection)
+    if (isInBody) {
+      return;
+    }
+
+    // Only start dragging if clicking on draggable areas
+    event.preventDefault();
+    event.stopPropagation();
+
     pointerIdRef.current = event.pointerId;
     isDraggingRef.current = true;
     startPositionRef.current = { x: event.clientX, y: event.clientY };
@@ -231,8 +251,8 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
       card.style.transition = "none";
       card.style.willChange = "transform";
       card.setPointerCapture?.(event.pointerId);
+      card.style.cursor = "grabbing";
     }
-    event.preventDefault();
   }, []);
 
   const handlePointerMove = useCallback((event) => {
@@ -277,6 +297,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     if (card) {
       card.style.transition = "";
       card.style.willChange = "";
+      card.style.cursor = "";
     }
 
     const deltaX = event.clientX - startPositionRef.current.x;
@@ -307,20 +328,18 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     const card = cardRef.current;
     if (!card) return undefined;
 
-    const listenerOptions = { passive: false };
-
-    card.addEventListener("pointerdown", handlePointerDown, listenerOptions);
-    card.addEventListener("pointermove", handlePointerMove, listenerOptions);
-    card.addEventListener("pointerup", handlePointerUp, listenerOptions);
-    card.addEventListener("pointercancel", handlePointerUp, listenerOptions);
-    card.addEventListener("pointerleave", handlePointerUp, listenerOptions);
+    card.addEventListener("pointerdown", handlePointerDown);
+    card.addEventListener("pointermove", handlePointerMove);
+    card.addEventListener("pointerup", handlePointerUp);
+    card.addEventListener("pointercancel", handlePointerUp);
+    card.addEventListener("pointerleave", handlePointerUp);
 
     return () => {
-      card.removeEventListener("pointerdown", handlePointerDown, listenerOptions);
-      card.removeEventListener("pointermove", handlePointerMove, listenerOptions);
-      card.removeEventListener("pointerup", handlePointerUp, listenerOptions);
-      card.removeEventListener("pointercancel", handlePointerUp, listenerOptions);
-      card.removeEventListener("pointerleave", handlePointerUp, listenerOptions);
+      card.removeEventListener("pointerdown", handlePointerDown);
+      card.removeEventListener("pointermove", handlePointerMove);
+      card.removeEventListener("pointerup", handlePointerUp);
+      card.removeEventListener("pointercancel", handlePointerUp);
+      card.removeEventListener("pointerleave", handlePointerUp);
     };
   }, [handlePointerDown, handlePointerMove, handlePointerUp]);
 
@@ -341,9 +360,6 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     <article
       ref={cardRef}
       className={cardClassName}
-      style={{
-        cursor: disabled ? "default" : "grab",
-      }}
       role="button"
       aria-label={`Email from ${email.from} with subject ${email.subject}`}
     >
@@ -730,7 +746,11 @@ function App() {
             <p>
               {isLoadingEmails
                 ? "Fetching your inbox…"
-                : `Showing ${Math.min(emails.length, 50)} of your newest conversations.`}
+                : emails.length === 0
+                ? "No emails to show."
+                : emails.length === 1
+                ? "1 conversation to triage."
+                : `${emails.length} conversations to triage.`}
             </p>
           </div>
         </header>
