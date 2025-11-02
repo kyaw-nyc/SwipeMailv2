@@ -334,7 +334,10 @@ const gmailMutate = async (accessToken, endpoint, body) => {
   return response.json();
 };
 
-const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], query } = {}) => {
+const fetchMessages = async (
+  accessToken,
+  { maxResults = 50, labelIds = [], query, pageToken = null } = {}
+) => {
   if (!accessToken) {
     throw new Error("Missing Google access token");
   }
@@ -344,13 +347,16 @@ const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], quer
     .map((labelId) => `labelIds=${encodeURIComponent(labelId)}`)
     .join("&");
   const searchQuery = query ? `&q=${encodeURIComponent(query)}` : "";
+  const tokenQuery = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
   const base = `/messages?maxResults=${maxResults}`;
-  const listEndpoint = `${base}${labelQuery ? `&${labelQuery}` : ""}${searchQuery}`;
+  const listEndpoint = `${base}${labelQuery ? `&${labelQuery}` : ""}${searchQuery}${tokenQuery}`;
 
   const listResponse = await gmailFetch(accessToken, listEndpoint);
 
   const messageIds = listResponse.messages ?? [];
-  if (messageIds.length === 0) return [];
+  if (messageIds.length === 0) {
+    return { emails: [], nextPageToken: listResponse.nextPageToken ?? null };
+  }
 
   const params = `format=full&metadataHeaders=${metadataHeaders.join("&metadataHeaders=")}`;
   const detailPromises = messageIds.map((message) =>
@@ -364,24 +370,30 @@ const fetchMessages = async (accessToken, { maxResults = 50, labelIds = [], quer
     console.warn(`Failed to fetch ${failed.length} out of ${messageIds.length} emails:`, failed);
   }
 
-  return detailedMessages
+  const emails = detailedMessages
     .filter((result) => result.status === "fulfilled")
     .map((result) => mapMessage(result.value))
     .sort((a, b) => b.internalDate - a.internalDate);
+
+  return {
+    emails,
+    nextPageToken: listResponse.nextPageToken ?? null,
+  };
 };
 
-export const fetchRecentEmails = (accessToken, maxResults = 50) =>
+export const fetchRecentEmails = (accessToken, maxResults = 50, pageToken = null) =>
   fetchMessages(accessToken, {
     maxResults,
     labelIds: ["INBOX", "UNREAD"],
     query: "-category:promotions",
+    pageToken,
   });
 
-export const fetchEmailsByLabel = (accessToken, labelId, maxResults = 50) => {
+export const fetchEmailsByLabel = (accessToken, labelId, maxResults = 50, pageToken = null) => {
   if (!labelId) {
     throw new Error("Missing label identifier");
   }
-  return fetchMessages(accessToken, { maxResults, labelIds: [labelId] });
+  return fetchMessages(accessToken, { maxResults, labelIds: [labelId], pageToken });
 };
 
 export const fetchLabels = async (accessToken) => {

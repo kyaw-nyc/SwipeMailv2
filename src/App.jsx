@@ -103,6 +103,191 @@ const LabelsPanel = ({
   </div>
 );
 
+const ViewToggle = ({ activeView, onChange, className = "" }) => {
+  const options = [
+    { id: "swipe", label: "Swipe" },
+    { id: "inbox", label: "Inbox" },
+  ];
+
+  return (
+    <div className={`view-toggle${className ? ` ${className}` : ""}`}>
+      {options.map((option) => {
+        const isActive = activeView === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            className={`view-toggle__button${isActive ? " view-toggle__button--active" : ""}`}
+            onClick={() => onChange(option.id)}
+            aria-pressed={isActive}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const InboxView = ({
+  emails,
+  isLoadingEmails,
+  needsGoogleReauth,
+  onReconnect,
+  error,
+  onRetry,
+  selectedEmailId,
+  onSelectEmail,
+  onLoadMore,
+  canLoadMore,
+  isLoadingMore,
+  selectedLabelId,
+}) => {
+  const listRef = useRef(null);
+  useEffect(() => {
+    if (!listRef.current) return;
+    listRef.current.scrollTop = 0;
+  }, [selectedLabelId]);
+  const selectedEmail = selectedEmailId
+    ? emails.find((email) => email.id === selectedEmailId) ?? null
+    : emails[0] ?? null;
+
+  const formattedBody = useMemo(() => {
+    if (!selectedEmail) return null;
+    const { html } = formatBodyForDisplay(selectedEmail.rawBody, selectedEmail.snippet);
+    return html || "<p>No content available.</p>";
+  }, [selectedEmail?.id, selectedEmail?.rawBody, selectedEmail?.snippet]);
+
+  useEffect(() => {
+    if (!onLoadMore) return undefined;
+    const listElement = listRef.current;
+    if (!listElement) return undefined;
+
+    const handleScroll = () => {
+      if (!canLoadMore || isLoadingMore) return;
+      const { scrollTop, scrollHeight, clientHeight } = listElement;
+      if (scrollHeight - scrollTop - clientHeight < 120) {
+        onLoadMore();
+      }
+    };
+
+    listElement.addEventListener("scroll", handleScroll);
+    return () => listElement.removeEventListener("scroll", handleScroll);
+  }, [onLoadMore, canLoadMore, isLoadingMore]);
+
+  return (
+    <section className="inbox-view">
+      <aside className="inbox-view__list">
+        <div className="inbox-view__list-header">
+          <span>Inbox</span>
+          <span className="inbox-view__list-count">
+            {isLoadingEmails ? "Refreshing…" : `${emails.length} messages`}
+          </span>
+        </div>
+        <ul className="inbox-view__items" ref={listRef}>
+          {isLoadingEmails && emails.length === 0 ? (
+            <li className="inbox-view__item inbox-view__item--placeholder">Loading messages…</li>
+          ) : null}
+
+          {!isLoadingEmails && emails.length === 0 ? (
+            <li className="inbox-view__item inbox-view__item--placeholder">
+              Nothing in your inbox right now.
+            </li>
+          ) : null}
+
+          {emails.map((email) => {
+            const isActive = (selectedEmail?.id ?? null) === email.id;
+            return (
+              <li key={email.id}>
+                <button
+                  type="button"
+                  className={`inbox-view__item${isActive ? " inbox-view__item--active" : ""}`}
+                  onClick={() => onSelectEmail(email.id)}
+                >
+                  <header>
+                    <strong className="inbox-view__item-from">{email.from}</strong>
+                    <time className="inbox-view__item-time">
+                      {new Date(email.internalDate).toLocaleString()}
+                    </time>
+                  </header>
+                  <div className="inbox-view__item-subject">{email.subject || "No subject"}</div>
+                  {email.snippet ? (
+                    <p className="inbox-view__item-snippet">{email.snippet}</p>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+
+          {isLoadingMore ? (
+            <li key="loading-more" className="inbox-view__item inbox-view__item--placeholder">
+              Loading more…
+            </li>
+          ) : null}
+          {!isLoadingMore && !canLoadMore && emails.length > 0 ? (
+            <li key="inbox-end" className="inbox-view__item inbox-view__item--placeholder">
+              No more messages.
+            </li>
+          ) : null}
+        </ul>
+      </aside>
+
+      <div className="inbox-view__detail">
+        {needsGoogleReauth ? (
+          <div className="inbox-view__reauth">
+            <h2>Connect Gmail to keep reading</h2>
+            <p>
+              We need permission to read and update your inbox. Google may ask you to confirm the
+              Gmail scopes because the app is still in testing.
+            </p>
+            <button type="button" onClick={onReconnect} className="empty-state__cta">
+              Grant Gmail access
+            </button>
+          </div>
+        ) : error ? (
+          <div className="inbox-view__error">
+            <p>{error}</p>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isLoadingEmails}
+                className="inbox-view__retry"
+              >
+                {isLoadingEmails ? "Refreshing…" : "Try again"}
+              </button>
+            ) : null}
+          </div>
+        ) : selectedEmail ? (
+          <>
+            <header className="inbox-view__detail-header">
+              <div>
+                <span className="inbox-view__detail-label">Inbox</span>
+                <h2>{selectedEmail.subject || "No subject"}</h2>
+              </div>
+              <time>{new Date(selectedEmail.internalDate).toLocaleString()}</time>
+            </header>
+            <div className="inbox-view__detail-meta">
+              <div className="inbox-view__avatar">
+                {selectedEmail.from?.charAt(0)?.toUpperCase() ?? "@"}
+              </div>
+              <div>
+                <strong>{selectedEmail.from}</strong>
+                {selectedEmail.to ? <span>To: {selectedEmail.to}</span> : null}
+              </div>
+            </div>
+            <div className="inbox-view__body" dangerouslySetInnerHTML={{ __html: formattedBody }} />
+          </>
+        ) : (
+          <div className="inbox-view__empty">
+            {isLoadingEmails ? "Loading…" : "Select a message to read."}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
 const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const [hint, setHint] = useState(null);
   const cardRef = useRef(null);
@@ -402,7 +587,14 @@ function App() {
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
   const [labelsError, setLabelsError] = useState(null);
   const [selectedLabelId, setSelectedLabelId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeView, setActiveView] = useState("swipe");
+  const [selectedInboxEmailId, setSelectedInboxEmailId] = useState(null);
+  const [nextPageToken, setNextPageToken] = useState(null);
+  const [isLoadingMoreEmails, setIsLoadingMoreEmails] = useState(false);
+  const [isHeaderLabelsOpen, setIsHeaderLabelsOpen] = useState(false);
   const swipeCardRef = useRef(null);
+  const headerLabelsRef = useRef(null);
 
   const providerToken = session?.provider_token;
 
@@ -475,34 +667,63 @@ function App() {
   }, []);
 
   const loadEmails = useCallback(
-    async (labelId = null) => {
+    async (labelId = null, { append = false, pageToken = null } = {}) => {
       if (!providerToken) {
         setNeedsGoogleReauth(true);
         return;
       }
 
       const effectiveLabelId = labelId ?? null;
-      setIsLoadingEmails(true);
-      setError(null);
-      setNeedsGoogleReauth(false);
+      if (append && !pageToken) {
+        return;
+      }
 
-      if (!profile?.avatarUrl && session?.user?.identities?.length) {
-        const googleIdentity = session.user.identities.find(
-          (identity) => identity.provider === "google"
-        );
-        if (googleIdentity?.identity_data?.avatar_url) {
-          setProfile({ avatarUrl: googleIdentity.identity_data.avatar_url });
+      if (append) {
+        setError(null);
+        setIsLoadingMoreEmails(true);
+      } else {
+        setIsLoadingEmails(true);
+        setError(null);
+        setNeedsGoogleReauth(false);
+        setNextPageToken(null);
+
+        if (!profile?.avatarUrl && session?.user?.identities?.length) {
+          const googleIdentity = session.user.identities.find(
+            (identity) => identity.provider === "google"
+          );
+          if (googleIdentity?.identity_data?.avatar_url) {
+            setProfile({ avatarUrl: googleIdentity.identity_data.avatar_url });
+          }
         }
       }
 
       try {
-        const data = effectiveLabelId
-          ? await fetchEmailsByLabel(providerToken, effectiveLabelId, 50)
-          : await fetchRecentEmails(providerToken, 50);
-        setEmails(data);
-        setSelectedLabelId((current) =>
-          current === effectiveLabelId ? current : effectiveLabelId
-        );
+        const maxResults = append ? 20 : 50;
+        const response = effectiveLabelId
+          ? await fetchEmailsByLabel(providerToken, effectiveLabelId, maxResults, pageToken)
+          : await fetchRecentEmails(providerToken, maxResults, pageToken);
+
+        const fetchedEmails = response?.emails ?? [];
+        const fetchedNextPageToken = response?.nextPageToken ?? null;
+        setNextPageToken(fetchedNextPageToken);
+
+        if (append) {
+          setEmails((currentEmails) => {
+            const existingIds = new Set(currentEmails.map((email) => email.id));
+            const merged = [...currentEmails];
+            fetchedEmails.forEach((email) => {
+              if (!existingIds.has(email.id)) {
+                merged.push(email);
+              }
+            });
+            return merged;
+          });
+        } else {
+          setEmails(fetchedEmails);
+          setSelectedLabelId((current) =>
+            current === effectiveLabelId ? current : effectiveLabelId
+          );
+        }
       } catch (err) {
         console.error(err);
         if (err instanceof GmailApiError && err.status === 403) {
@@ -519,7 +740,11 @@ function App() {
           );
         }
       } finally {
-        setIsLoadingEmails(false);
+        if (append) {
+          setIsLoadingMoreEmails(false);
+        } else {
+          setIsLoadingEmails(false);
+        }
       }
     },
     [providerToken, profile?.avatarUrl, session]
@@ -530,13 +755,46 @@ function App() {
     loadEmails();
   }, [providerToken, loadEmails]);
 
+  useEffect(() => {
+    if (!emails.length) {
+      setSelectedInboxEmailId(null);
+      return;
+    }
+    setSelectedInboxEmailId((current) => {
+      if (current && emails.some((email) => email.id === current)) {
+        return current;
+      }
+      return emails[0]?.id ?? null;
+    });
+  }, [emails]);
+
+  useEffect(() => {
+    if (!isHeaderLabelsOpen) return;
+    const handleClickOutside = (event) => {
+      if (headerLabelsRef.current && !headerLabelsRef.current.contains(event.target)) {
+        setIsHeaderLabelsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isHeaderLabelsOpen]);
+
+  useEffect(() => {
+    setIsHeaderLabelsOpen(false);
+  }, [selectedLabelId]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
+    setIsSidebarOpen(false);
+    setActiveView("swipe");
     setEmails([]);
     setNeedsGoogleReauth(false);
     setLabels([]);
     setSelectedLabelId(null);
     setLabelsError(null);
+    setSelectedInboxEmailId(null);
+    setNextPageToken(null);
+    setIsLoadingMoreEmails(false);
   };
 
   const handleLabelSelect = useCallback(
@@ -545,6 +803,11 @@ function App() {
     },
     [loadEmails]
   );
+
+  const handleLoadMoreInbox = useCallback(() => {
+    if (!nextPageToken || isLoadingMoreEmails) return;
+    loadEmails(selectedLabelId ?? null, { append: true, pageToken: nextPageToken });
+  }, [nextPageToken, isLoadingMoreEmails, selectedLabelId, loadEmails]);
 
   const handleSwipe = async (direction) => {
     if (!providerToken) {
@@ -636,7 +899,9 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (activeAction || !emails.length || !swipeCardRef.current) return;
+      if (activeView !== "swipe" || activeAction || !emails.length || !swipeCardRef.current) {
+        return;
+      }
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         swipeCardRef.current.triggerSwipe("left");
@@ -651,7 +916,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [emails, activeAction]);
+  }, [emails, activeAction, activeView]);
 
   if (!session) {
     return <SignInPage />;
@@ -682,158 +947,300 @@ function App() {
           </button>
         </div>
       </div>
-      <div className="dashboard">
-        <aside className="dashboard__sidebar">
-          <div className="sidebar__logo">
-            <div>
-              <strong>SwipeMail</strong>
-            <span className="sidebar__tag">Beta</span>
-          </div>
-        </div>
-
-        <SummarySection />
-        <LabelsPanel
-          labelOptions={labelOptions}
-          selectedLabelId={selectedLabelId}
-          onSelect={handleLabelSelect}
-          isLoadingLabels={isLoadingLabels}
-          labelsError={labelsError}
-          isLoadingEmails={isLoadingEmails}
-        />
-
-        <div className="sidebar__footer">
-          <button
-            className="sidebar__reload"
-            type="button"
-            onClick={() => loadEmails(selectedLabelId ?? null)}
-            disabled={isLoadingEmails}
-          >
-            {isLoadingEmails ? "Refreshing…" : "Refresh inbox"}
-          </button>
-          <button className="sidebar__signout" type="button" onClick={signOut}>
-            Sign out
-          </button>
-          <div className="sidebar__user">
-            {avatarUrl ? (
-              <img className="sidebar__avatar sidebar__avatar--image" src={avatarUrl} alt="" />
-            ) : (
-              <span className="sidebar__avatar">{userInitials}</span>
-            )}
-            <div>
-              <strong>{session.user?.email}</strong>
-              <span>Signed in with Google</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <main className="dashboard__stage">
-        <div className="stage__mobile-info">
-          <SummarySection className="stage__mobile-summary" />
-          <LabelsPanel
-            className="stage__mobile-labels"
-            labelOptions={labelOptions}
-            selectedLabelId={selectedLabelId}
-            onSelect={handleLabelSelect}
-            isLoadingLabels={isLoadingLabels}
-            labelsError={labelsError}
-            isLoadingEmails={isLoadingEmails}
-          />
-        </div>
-        <header className="stage__header">
-          <div>
-            <h1>Latest mail</h1>
-            <p>
-              {isLoadingEmails
-                ? "Fetching your inbox…"
-                : emails.length === 0
-                ? "No emails to show."
-                : emails.length === 1
-                ? "1 conversation to triage."
-                : `${emails.length} conversations to triage.`}
-            </p>
-          </div>
-        </header>
-
-        {error ? (
-          <div className="stage__error">
-            <span>{error}</span>
-            {needsGoogleReauth ? (
-              <button type="button" onClick={reconnectGmail}>
-                Grant Gmail access
-              </button>
-            ) : (
+      <div className={`dashboard${isSidebarOpen ? " dashboard--with-sidebar" : ""}`}>
+        {isSidebarOpen ? (
+          <aside className="dashboard__sidebar" id="dashboard-sidebar">
+            <div className="sidebar__header">
               <button
+                type="button"
+                className="rail__menu-button sidebar__menu-button"
+                onClick={() => setIsSidebarOpen(false)}
+                aria-label="Hide sidebar"
+                aria-expanded="true"
+                aria-controls="dashboard-sidebar"
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+            </div>
+            <div className="sidebar__brand">
+              <strong>SwipeMail</strong>
+              <span className="sidebar__tag">Beta</span>
+            </div>
+
+            <SummarySection />
+            <ViewToggle
+              className="sidebar__view-toggle"
+              activeView={activeView}
+              onChange={(nextView) => {
+                setActiveView(nextView);
+                setIsSidebarOpen(false);
+              }}
+            />
+
+            <div className="sidebar__footer">
+              <button
+                className="sidebar__reload"
                 type="button"
                 onClick={() => loadEmails(selectedLabelId ?? null)}
                 disabled={isLoadingEmails}
               >
-                Try again
+                {isLoadingEmails ? "Refreshing…" : "Refresh inbox"}
               </button>
-            )}
-          </div>
+              <button className="sidebar__signout" type="button" onClick={signOut}>
+                Sign out
+              </button>
+              <div className="sidebar__user">
+                {avatarUrl ? (
+                  <img className="sidebar__avatar sidebar__avatar--image" src={avatarUrl} alt="" />
+                ) : (
+                  <span className="sidebar__avatar">{userInitials}</span>
+                )}
+                <div>
+                  <strong>{session.user?.email}</strong>
+                  <span>Signed in with Google</span>
+                </div>
+              </div>
+            </div>
+          </aside>
         ) : null}
 
-        <section className="stage__deck">
-          <div className="stage__deck-surface">
-            {isLoadingEmails && emails.length === 0 ? (
-              <div className="mail-card mail-card--placeholder">
-                <div className="mail-card__skeleton mail-card__skeleton--from" />
-                <div className="mail-card__skeleton mail-card__skeleton--subject" />
-                <div className="mail-card__skeleton mail-card__skeleton--body" />
-              </div>
-            ) : null}
-
-            {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
-              <div className="empty-state">
-                <h2>Nothing left to triage 🎉</h2>
-                <p>When new emails arrive, swipe through them right here.</p>
-              </div>
-            ) : null}
-
-            {needsGoogleReauth && (
-              <div className="empty-state empty-state--reauth">
-                <h2>Connect Gmail to start swiping</h2>
+        <main className="dashboard__stage">
+          <div className="stage__mobile-info">
+            <SummarySection className="stage__mobile-summary" />
+            <ViewToggle
+              className="stage__view-toggle"
+              activeView={activeView}
+              onChange={(nextView) => {
+                setActiveView(nextView);
+                setIsSidebarOpen(false);
+              }}
+            />
+            <LabelsPanel
+              className="stage__mobile-labels"
+              labelOptions={labelOptions}
+              selectedLabelId={selectedLabelId}
+              onSelect={handleLabelSelect}
+              isLoadingLabels={isLoadingLabels}
+              labelsError={labelsError}
+              isLoadingEmails={isLoadingEmails}
+            />
+          </div>
+          <header className="stage__header">
+            <div className="stage__header-left">
+              {!isSidebarOpen ? (
+                <button
+                  type="button"
+                  className="rail__menu-button stage__menu-button"
+                  onClick={() => setIsSidebarOpen(true)}
+                  aria-label="Show sidebar"
+                  aria-controls="dashboard-sidebar"
+                  aria-expanded="false"
+                >
+                  <span />
+                  <span />
+                  <span />
+                </button>
+              ) : null}
+              <div className="stage__header-titles">
+                <h1>{activeView === "swipe" ? "Latest mail" : "Inbox"}</h1>
                 <p>
-                  We need permission to read and update your inbox. Google may ask you to confirm the
-                  Gmail scopes because the app is still in testing.
+                  {isLoadingEmails
+                    ? "Fetching your inbox…"
+                    : emails.length === 0
+                    ? "No emails to show."
+                    : activeView === "swipe"
+                    ? emails.length === 1
+                      ? "1 conversation to triage."
+                      : `${emails.length} conversations to triage.`
+                    : emails.length === 1
+                    ? "1 conversation available."
+                  : `${emails.length} conversations available.`}
                 </p>
-                <button type="button" onClick={reconnectGmail} className="empty-state__cta">
-                  Grant Gmail access
+              </div>
+              <div className="stage__header-controls" ref={headerLabelsRef}>
+                <button
+                  type="button"
+                  className="stage__labels-trigger"
+                  onClick={() => setIsHeaderLabelsOpen((open) => !open)}
+                  aria-haspopup="true"
+                  aria-expanded={isHeaderLabelsOpen}
+                  disabled={isLoadingLabels}
+                >
+                  <span
+                    className={`sidebar__label-dot sidebar__label-dot--${
+                      labelOptions.find((label) => label.id === selectedLabelId)?.type ??
+                      (selectedLabelId ? "system" : "virtual")
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="stage__labels-trigger-text">
+                    {labelOptions.find((label) => label.id === selectedLabelId)?.displayName ??
+                      "Unread Inbox"}
+                  </span>
+                  <span className="stage__labels-trigger-caret" aria-hidden="true">
+                    {isHeaderLabelsOpen ? "▲" : "▼"}
+                  </span>
+                </button>
+                {isHeaderLabelsOpen ? (
+                  <div className="stage__labels-menu">
+                    {labelsError ? (
+                      <div className="stage__labels-menu-error">{labelsError}</div>
+                    ) : null}
+                    {isLoadingLabels ? (
+                      <div className="stage__labels-menu-loading">Loading labels…</div>
+                    ) : (
+                      <ul className="stage__labels-menu-list">
+                        {labelOptions.map((label) => {
+                          const isActive =
+                            selectedLabelId === label.id ||
+                            (!selectedLabelId && label.id === null);
+                          const dotType =
+                            label.type ?? (label.id ? "system" : "virtual");
+                          return (
+                            <li key={label.id ?? "__unread"} className="stage__labels-menu-item">
+                              <button
+                                type="button"
+                                className={`stage__labels-menu-button${
+                                  isActive ? " stage__labels-menu-button--active" : ""
+                                }`}
+                                onClick={() => {
+                                  handleLabelSelect(label.id);
+                                  setIsHeaderLabelsOpen(false);
+                                }}
+                                disabled={isLoadingEmails}
+                              >
+                                <span
+                                  className={`sidebar__label-dot sidebar__label-dot--${dotType}`}
+                                  aria-hidden="true"
+                                />
+                                <span>{label.displayName}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  className="stage__labels-refresh"
+                  onClick={() => loadEmails(selectedLabelId ?? null)}
+                  disabled={isLoadingEmails}
+                  aria-label="Refresh inbox"
+                >
+                  <img src="/reload.png" alt="" />
                 </button>
               </div>
-            )}
+            </div>
+            <div className="stage__refresh-placeholder" />
+          </header>
 
-            {emails[0] ? (
-              <SwipeCard ref={swipeCardRef} email={emails[0]} onSwipe={handleSwipe} disabled={!!activeAction} />
-            ) : null}
-          </div>
+          {activeView === "swipe" && error ? (
+            <div className="stage__error">
+              <span>{error}</span>
+              {needsGoogleReauth ? (
+                <button type="button" onClick={reconnectGmail}>
+                  Grant Gmail access
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => loadEmails(selectedLabelId ?? null)}
+                  disabled={isLoadingEmails}
+                >
+                  Try again
+                </button>
+              )}
+            </div>
+          ) : null}
 
-          <aside className="stage__deck-queue">
-            <span className="stage__queue-label">Up next</span>
-            {emails.slice(1, 4).map((email) => (
-              <article key={email.id} className="queue-card">
-                <div className="queue-card__meta">
-                  <span>{new Date(email.internalDate).toLocaleDateString()}</span>
+          {activeView === "swipe" ? (
+            <>
+              <section className="stage__deck">
+                <div className="stage__deck-surface">
+                  {isLoadingEmails && emails.length === 0 ? (
+                    <div className="mail-card mail-card--placeholder">
+                      <div className="mail-card__skeleton mail-card__skeleton--from" />
+                      <div className="mail-card__skeleton mail-card__skeleton--subject" />
+                      <div className="mail-card__skeleton mail-card__skeleton--body" />
+                    </div>
+                  ) : null}
+
+                  {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
+                    <div className="empty-state">
+                      <h2>Nothing left to triage 🎉</h2>
+                      <p>When new emails arrive, swipe through them right here.</p>
+                    </div>
+                  ) : null}
+
+                  {needsGoogleReauth && (
+                    <div className="empty-state empty-state--reauth">
+                      <h2>Connect Gmail to start swiping</h2>
+                      <p>
+                        We need permission to read and update your inbox. Google may ask you to confirm
+                        the Gmail scopes because the app is still in testing.
+                      </p>
+                      <button type="button" onClick={reconnectGmail} className="empty-state__cta">
+                        Grant Gmail access
+                      </button>
+                    </div>
+                  )}
+
+                  {emails[0] ? (
+                    <SwipeCard
+                      ref={swipeCardRef}
+                      email={emails[0]}
+                      onSwipe={handleSwipe}
+                      disabled={!!activeAction}
+                    />
+                  ) : null}
                 </div>
-                <h4>{email.subject}</h4>
-                <p>{email.from}</p>
-              </article>
-            ))}
 
-            {emails.length <= 1 && !needsGoogleReauth ? (
-              <div className="queue-card queue-card--placeholder">Inbox will refill here</div>
-            ) : null}
-          </aside>
-        </section>
+                <aside className="stage__deck-queue">
+                  <span className="stage__queue-label">Up next</span>
+                  {emails.slice(1, 4).map((email) => (
+                    <article key={email.id} className="queue-card">
+                      <div className="queue-card__meta">
+                        <span>{new Date(email.internalDate).toLocaleDateString()}</span>
+                      </div>
+                      <h4>{email.subject}</h4>
+                      <p>{email.from}</p>
+                    </article>
+                  ))}
 
-        {actionFeedback ? (
-          <div className="stage__feedback">
-            <strong>{actionFeedback.label}</strong>
-            <span>{actionFeedback.description}</span>
-          </div>
-        ) : null}
-      </main>
+                  {emails.length <= 1 && !needsGoogleReauth ? (
+                    <div className="queue-card queue-card--placeholder">Inbox will refill here</div>
+                  ) : null}
+                </aside>
+              </section>
+
+              {actionFeedback ? (
+                <div className="stage__feedback">
+                  <strong>{actionFeedback.label}</strong>
+                  <span>{actionFeedback.description}</span>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <InboxView
+              emails={emails}
+              isLoadingEmails={isLoadingEmails}
+              needsGoogleReauth={needsGoogleReauth}
+              onReconnect={reconnectGmail}
+              error={error}
+              onRetry={() => loadEmails(selectedLabelId ?? null)}
+              selectedEmailId={selectedInboxEmailId}
+              onSelectEmail={setSelectedInboxEmailId}
+              onLoadMore={handleLoadMoreInbox}
+              canLoadMore={!!nextPageToken}
+              isLoadingMore={isLoadingMoreEmails}
+              selectedLabelId={selectedLabelId}
+            />
+          )}
+        </main>
       </div>
     </>
   );
