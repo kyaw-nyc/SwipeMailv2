@@ -2,7 +2,14 @@ import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, 
 import "./App.css";
 import { supabase } from "../supabaseClient";
 import SignInPage from "./pages/SignIn";
-import { archiveEmail, fetchRecentEmails, markAsRead, starEmail, GmailApiError } from "./lib/gmail";
+import {
+  archiveEmail,
+  fetchRecentEmails,
+  markAsRead,
+  starEmail,
+  GmailApiError,
+  formatBodyForDisplay,
+} from "./lib/gmail";
 
 const CARD_EXIT_DURATION = 180;
 
@@ -242,6 +249,10 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
   const activeHint = hint ? HINT_COPY[hint] : null;
 
   const cardClassName = `mail-card${hint ? ` mail-card--${hint}` : ""}`;
+  const formattedBody = useMemo(() => {
+    const { html } = formatBodyForDisplay(email.rawBody, email.snippet);
+    return html || "<p>No preview available.</p>";
+  }, [email.id, email.rawBody, email.snippet]);
 
   return (
     <article
@@ -271,7 +282,7 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
       <h3 className="mail-card__subject">{email.subject}</h3>
       <div
         className="mail-card__body"
-        dangerouslySetInnerHTML={{ __html: email.body || "<p>No preview available.</p>" }}
+        dangerouslySetInnerHTML={{ __html: formattedBody }}
       />
     </article>
   );

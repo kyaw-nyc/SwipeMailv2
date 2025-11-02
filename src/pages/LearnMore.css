@@ -21,7 +21,8 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  pointer-events: none;
+  pointer-events: auto;
+  overflow-y: auto;
 }
 
 .learn-more-header {
@@ -87,13 +88,14 @@
 
 .learn-more-main {
   flex: 1;
-  padding: 3rem 2rem 4rem;
+  padding: clamp(2.5rem, 6vw, 4rem) clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
   pointer-events: auto;
 }
 
 .learn-more-container {
   max-width: 1200px;
   margin: 0 auto;
+  padding-bottom: clamp(4rem, 8vw, 7rem);
 }
 
 .learn-more-hero-title {

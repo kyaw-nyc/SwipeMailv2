@@ -76,8 +76,20 @@ const ALLOWED_TAGS = new Set([
   "br",
   "code",
   "div",
+  "dl",
+  "dt",
+  "dd",
   "em",
+  "figure",
+  "figcaption",
   "hr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "img",
   "i",
   "li",
   "ol",
@@ -96,6 +108,7 @@ const ALLOWED_TAGS = new Set([
 
 const ALLOWED_ATTRIBUTES = {
   a: ["href", "title"],
+  img: ["src", "alt", "width", "height", "loading"],
   td: ["colspan", "rowspan"],
   th: ["colspan", "rowspan"],
 };
@@ -146,7 +159,7 @@ const sanitizeHtmlContent = (html) => {
           return;
         }
 
-        if (name === "href") {
+        if (tag === "a" && name === "href") {
           const value = attr.value?.trim() ?? "";
           if (!value || /^javascript:/i.test(value) || /^data:/i.test(value)) {
             element.removeAttribute(attr.name);
@@ -154,6 +167,29 @@ const sanitizeHtmlContent = (html) => {
           }
           element.setAttribute("target", "_blank");
           element.setAttribute("rel", "noopener noreferrer");
+        } else if (tag === "img" && name === "src") {
+          const value = attr.value?.trim() ?? "";
+          const isHttp = /^https?:\/\//i.test(value);
+          const isDataImage = /^data:image\//i.test(value);
+          if (!isHttp && !isDataImage) {
+            element.removeAttribute(attr.name);
+            return;
+          }
+          if (!element.getAttribute("loading")) {
+            element.setAttribute("loading", "lazy");
+          }
+        } else if (tag === "img" && (name === "width" || name === "height")) {
+          const parsed = parseInt(attr.value, 10);
+          if (Number.isNaN(parsed) || parsed <= 0) {
+            element.removeAttribute(attr.name);
+          } else {
+            element.setAttribute(attr.name, String(parsed));
+          }
+        } else if (tag === "img" && name === "loading") {
+          const value = attr.value?.toLowerCase();
+          if (value !== "lazy" && value !== "auto") {
+            element.setAttribute("loading", "lazy");
+          }
         }
       });
     });
@@ -180,7 +216,7 @@ const extractTextContent = (html) => {
   }
 };
 
-const formatMessageBody = (rawBody, snippet) => {
+export const formatBodyForDisplay = (rawBody, snippet) => {
   const trimmedBody = rawBody?.trim() ?? "";
   const fallbackSnippet = snippet ?? "";
 
@@ -234,8 +270,9 @@ const mapMessage = (message) => {
   const date = getHeaderValue(headers, "Date");
   const snippet = message.snippet ?? "";
   const body = decodeBody(message.payload);
-  const { html: formattedHtml, text: plainText } = formatMessageBody(body, snippet);
-  const preview = buildPreview(plainText || snippet);
+  const normalizedBody = normalizePlainText(body);
+  const normalizedSnippet = normalizePlainText(snippet);
+  const preview = buildPreview(normalizedBody || normalizedSnippet || snippet);
 
   return {
     id: message.id,
@@ -243,8 +280,8 @@ const mapMessage = (message) => {
     subject,
     from,
     snippet,
-    body: formattedHtml,
-    plainTextBody: plainText,
+    rawBody: body,
+    plainTextBody: normalizedBody || normalizedSnippet,
     preview,
     date,
     internalDate: Number(message.internalDate ?? Date.now()),
