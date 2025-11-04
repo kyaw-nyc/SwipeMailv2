@@ -593,6 +593,7 @@ function App() {
   const [nextPageToken, setNextPageToken] = useState(null);
   const [isLoadingMoreEmails, setIsLoadingMoreEmails] = useState(false);
   const [isHeaderLabelsOpen, setIsHeaderLabelsOpen] = useState(false);
+  const [isUpNextOpen, setIsUpNextOpen] = useState(false);
   const swipeCardRef = useRef(null);
   const headerLabelsRef = useRef(null);
 
@@ -778,6 +779,7 @@ function App() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isHeaderLabelsOpen]);
+
 
   useEffect(() => {
     setIsHeaderLabelsOpen(false);
@@ -1135,7 +1137,19 @@ function App() {
                 </button>
               </div>
             </div>
-            <div className="stage__refresh-placeholder" />
+            {activeView === "swipe" && emails.length > 1 && !needsGoogleReauth ? (
+              <button
+                type="button"
+                className={`stage__upnext-toggle${isUpNextOpen ? " stage__upnext-toggle--active" : ""}`}
+                onClick={() => setIsUpNextOpen(!isUpNextOpen)}
+                aria-label="Toggle up next preview"
+                aria-expanded={isUpNextOpen}
+              >
+                <span>Show next items</span>
+              </button>
+            ) : (
+              <div className="stage__refresh-placeholder" />
+            )}
           </header>
 
           {activeView === "swipe" && error ? (
@@ -1159,48 +1173,62 @@ function App() {
 
           {activeView === "swipe" ? (
             <>
-              <section className="stage__deck">
-                <div className="stage__deck-surface">
-                  {isLoadingEmails && emails.length === 0 ? (
-                    <div className="mail-card mail-card--placeholder">
-                      <div className="mail-card__skeleton mail-card__skeleton--from" />
-                      <div className="mail-card__skeleton mail-card__skeleton--subject" />
-                      <div className="mail-card__skeleton mail-card__skeleton--body" />
-                    </div>
-                  ) : null}
+              <section className={`stage__deck${isUpNextOpen ? " stage__deck--with-queue" : ""}`}>
+                <div className="stage__deck-main">
+                  <div className="stage__deck-surface">
+                    {isLoadingEmails && emails.length === 0 ? (
+                      <div className="mail-card mail-card--placeholder">
+                        <div className="mail-card__skeleton mail-card__skeleton--from" />
+                        <div className="mail-card__skeleton mail-card__skeleton--subject" />
+                        <div className="mail-card__skeleton mail-card__skeleton--body" />
+                      </div>
+                    ) : null}
 
-                  {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
-                    <div className="empty-state">
-                      <h2>Nothing left to triage 🎉</h2>
-                      <p>When new emails arrive, swipe through them right here.</p>
-                    </div>
-                  ) : null}
+                    {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
+                      <div className="empty-state">
+                        <h2>Nothing left to triage 🎉</h2>
+                        <p>When new emails arrive, swipe through them right here.</p>
+                      </div>
+                    ) : null}
 
-                  {needsGoogleReauth && (
-                    <div className="empty-state empty-state--reauth">
-                      <h2>Connect Gmail to start swiping</h2>
-                      <p>
-                        We need permission to read and update your inbox. Google may ask you to confirm
-                        the Gmail scopes because the app is still in testing.
-                      </p>
-                      <button type="button" onClick={reconnectGmail} className="empty-state__cta">
-                        Grant Gmail access
-                      </button>
-                    </div>
-                  )}
+                    {needsGoogleReauth && (
+                      <div className="empty-state empty-state--reauth">
+                        <h2>Connect Gmail to start swiping</h2>
+                        <p>
+                          We need permission to read and update your inbox. Google may ask you to confirm
+                          the Gmail scopes because the app is still in testing.
+                        </p>
+                        <button type="button" onClick={reconnectGmail} className="empty-state__cta">
+                          Grant Gmail access
+                        </button>
+                      </div>
+                    )}
 
-                  {emails[0] ? (
-                    <SwipeCard
-                      ref={swipeCardRef}
-                      email={emails[0]}
-                      onSwipe={handleSwipe}
-                      disabled={!!activeAction}
-                    />
-                  ) : null}
+                    {emails[0] ? (
+                      <SwipeCard
+                        ref={swipeCardRef}
+                        email={emails[0]}
+                        onSwipe={handleSwipe}
+                        disabled={!!activeAction}
+                      />
+                    ) : null}
+                  </div>
                 </div>
 
-                <aside className="stage__deck-queue">
-                  <span className="stage__queue-label">Up next</span>
+                <aside
+                  className={`stage__deck-queue${isUpNextOpen ? " stage__deck-queue--visible" : ""}`}
+                >
+                  <div className="stage__deck-queue-header">
+                    <span className="stage__queue-label">Up next</span>
+                    <button
+                      type="button"
+                      className="stage__deck-queue-close"
+                      onClick={() => setIsUpNextOpen(false)}
+                      aria-label="Close up next panel"
+                    >
+                      ×
+                    </button>
+                  </div>
                   {emails.slice(1, 4).map((email) => (
                     <article key={email.id} className="queue-card">
                       <div className="queue-card__meta">
