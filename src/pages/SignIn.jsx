@@ -1,36 +1,41 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import "./SignIn.css";
-import { supabase } from "../../supabaseClient";
 import Squares from "../components/Squares";
+import { redirectToLogin } from "../lib/auth";
+
+const AUTH_ERROR_MESSAGES = {
+  state_mismatch: "That sign-in attempt expired. Please try again.",
+  missing_code: "Google did not return a code. Refresh and try again.",
+  oauth_error: "Google refused to issue tokens for this account.",
+  callback_failed: "Google sign-in is unavailable right now. Please retry in a moment.",
+};
 
 function SignInPage() {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get("authError");
+    if (!reason) return null;
+    return {
+      type: "error",
+      text: AUTH_ERROR_MESSAGES[reason] ?? AUTH_ERROR_MESSAGES.callback_failed,
+    };
+  });
 
-  const handleGoogleSignIn = async () => {
+  useEffect(() => {
+    if (!window.location.search) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("authError")) {
+      url.searchParams.delete("authError");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
+
+  const handleGoogleSignIn = () => {
     setIsGoogleSubmitting(true);
     setFeedback(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-        scopes:
-          "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify",
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
-    });
-
-    if (error) {
-      setFeedback({
-        type: "error",
-        text: error.message ?? "Google sign-in is unavailable right now.",
-      });
-      setIsGoogleSubmitting(false);
-    }
+    redirectToLogin();
   };
 
   return (

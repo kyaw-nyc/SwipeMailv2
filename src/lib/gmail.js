@@ -1,7 +1,3 @@
-const GMAIL_API_ROOT = "https://gmail.googleapis.com/gmail/v1/users/me";
-
-const metadataHeaders = ["Subject", "From", "Date"];
-
 class GmailApiError extends Error {
   constructor(message, status) {
     super(message);
@@ -9,39 +5,6 @@ class GmailApiError extends Error {
     this.status = status;
   }
 }
-
-const getHeaderValue = (headers, name) => {
-  const found = headers?.find((header) => header.name?.toLowerCase() === name.toLowerCase());
-  return found?.value ?? "";
-};
-
-const decodeBody = (payload) => {
-  if (!payload) return "";
-  const data =
-    payload.body?.data ??
-    payload.parts?.find((part) => part.mimeType === "text/plain")?.body?.data ??
-    payload.parts?.[0]?.body?.data;
-
-  if (!data) return "";
-
-  try {
-    const cleaned = data.replace(/-/g, "+").replace(/_/g, "/");
-    const decoded = window.atob(cleaned);
-    try {
-      return decodeURIComponent(
-        decoded
-          .split("")
-          .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
-          .join("")
-      );
-    } catch {
-      return decoded;
-    }
-  } catch (err) {
-    console.warn("Failed to decode message body", err);
-    return "";
-  }
-};
 
 const escapeHtml = (value = "") =>
   value
@@ -133,9 +96,9 @@ const sanitizeHtmlContent = (html) => {
 
     if (!body) return "";
 
-    body.querySelectorAll("script, style, link, meta, title, iframe, object, embed, form").forEach((node) =>
-      node.remove()
-    );
+    body
+      .querySelectorAll("script, style, link, meta, title, iframe, object, embed, form")
+      .forEach((node) => node.remove());
 
     const unwrapElement = (element) => {
       const parent = element.parentNode;
@@ -263,221 +226,94 @@ export const formatBodyForDisplay = (rawBody, snippet) => {
   };
 };
 
-const buildPreview = (text) =>
-  (text ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 420);
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
-const mapMessage = (message) => {
-  const headers = message.payload?.headers ?? [];
-  const subject = getHeaderValue(headers, "Subject") || "(No subject)";
-  const from = getHeaderValue(headers, "From") || "Unknown sender";
-  const date = getHeaderValue(headers, "Date");
-  const snippet = message.snippet ?? "";
-  const body = decodeBody(message.payload);
-  const normalizedBody = normalizePlainText(body);
-  const normalizedSnippet = normalizePlainText(snippet);
-  const preview = buildPreview(normalizedBody || normalizedSnippet || snippet);
-
-  return {
-    id: message.id,
-    threadId: message.threadId,
-    subject,
-    from,
-    snippet,
-    rawBody: body,
-    plainTextBody: normalizedBody || normalizedSnippet,
-    preview,
-    date,
-    internalDate: Number(message.internalDate ?? Date.now()),
-    labelIds: message.labelIds ?? [],
-  };
+const resolveApiPath = (path) => {
+  if (!path.startsWith("/")) {
+    return path;
+  }
+  return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
 };
 
-const gmailFetch = async (accessToken, endpoint) => {
-  const response = await fetch(`${GMAIL_API_ROOT}${endpoint}`, {
+const apiFetch = async (path, options = {}) => {
+  const response = await fetch(resolveApiPath(path), {
+    credentials: "include",
+    ...options,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      ...(options.headers ?? {}),
     },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new GmailApiError(
-      errorText || "Unknown Gmail API error",
-      response.status
-    );
+  const contentType = response.headers?.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+  let payload = null;
+  try {
+    payload = isJson ? await response.json() : await response.text();
+  } catch (error) {
+    payload = null;
+    if (isJson) {
+      console.warn("Failed to parse API response", error);
+    }
   }
 
-  return response.json();
+  if (!response.ok) {
+    const message =
+      (payload && typeof payload === "object" ? payload.error : null) ||
+      (typeof payload === "string" && payload) ||
+      "Request failed";
+    throw new GmailApiError(message, response.status);
+  }
+
+  return payload;
 };
 
-const gmailMutate = async (accessToken, endpoint, body) => {
-  const response = await fetch(`${GMAIL_API_ROOT}${endpoint}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+const buildQueryString = (params = {}) => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    search.set(key, String(value));
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new GmailApiError(
-      errorText || "Unknown Gmail API error",
-      response.status
-    );
-  }
-
-  return response.json();
+  const query = search.toString();
+  return query ? `?${query}` : "";
 };
 
-const fetchMessages = async (
-  accessToken,
-  { maxResults = 50, labelIds = [], query, pageToken = null } = {}
-) => {
-  if (!accessToken) {
-    throw new Error("Missing Google access token");
-  }
-
-  const labelQuery = labelIds
-    .filter(Boolean)
-    .map((labelId) => `labelIds=${encodeURIComponent(labelId)}`)
-    .join("&");
-  const searchQuery = query ? `&q=${encodeURIComponent(query)}` : "";
-  const tokenQuery = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
-  const base = `/messages?maxResults=${maxResults}`;
-  const listEndpoint = `${base}${labelQuery ? `&${labelQuery}` : ""}${searchQuery}${tokenQuery}`;
-
-  const listResponse = await gmailFetch(accessToken, listEndpoint);
-
-  const messageIds = listResponse.messages ?? [];
-  if (messageIds.length === 0) {
-    return { emails: [], nextPageToken: listResponse.nextPageToken ?? null };
-  }
-
-  const params = `format=full&metadataHeaders=${metadataHeaders.join("&metadataHeaders=")}`;
-  const detailPromises = messageIds.map((message) =>
-    gmailFetch(accessToken, `/messages/${message.id}?${params}`)
-  );
-
-  const detailedMessages = await Promise.allSettled(detailPromises);
-
-  const failed = detailedMessages.filter((result) => result.status === "rejected");
-  if (failed.length > 0) {
-    console.warn(`Failed to fetch ${failed.length} out of ${messageIds.length} emails:`, failed);
-  }
-
-  const emails = detailedMessages
-    .filter((result) => result.status === "fulfilled")
-    .map((result) => mapMessage(result.value))
-    .sort((a, b) => b.internalDate - a.internalDate);
-
-  return {
-    emails,
-    nextPageToken: listResponse.nextPageToken ?? null,
-  };
-};
-
-export const fetchRecentEmails = (accessToken, maxResults = 50, pageToken = null) =>
-  fetchMessages(accessToken, {
+export const fetchRecentEmails = (maxResults = 50, pageToken = null) => {
+  const query = buildQueryString({
     maxResults,
-    labelIds: ["INBOX", "UNREAD"],
-    query: "-category:promotions",
     pageToken,
   });
+  return apiFetch(`/api/gmail/messages${query}`);
+};
 
-export const fetchEmailsByLabel = (accessToken, labelId, maxResults = 50, pageToken = null) => {
+export const fetchEmailsByLabel = (labelId, maxResults = 50, pageToken = null) => {
   if (!labelId) {
-    throw new Error("Missing label identifier");
+    throw new Error("Label identifier is required");
   }
-  return fetchMessages(accessToken, { maxResults, labelIds: [labelId], pageToken });
+  const query = buildQueryString({
+    labelId,
+    maxResults,
+    pageToken,
+  });
+  return apiFetch(`/api/gmail/messages${query}`);
 };
 
-export const fetchLabels = async (accessToken) => {
-    if (!accessToken) {
-      throw new Error("Missing Google access token");
-    }
+export const fetchLabels = () => apiFetch("/api/gmail/labels");
 
-    const response = await gmailFetch(accessToken, "/labels");
-    const labels = response.labels ?? [];
-
-    const hiddenSystemLabels = new Set([
-      "CHAT",
-      "DRAFT",
-      "SENT",
-      "SPAM",
-      "TRASH",
-      "INBOX",
-      "STARRED",
-      "UNREAD",
-      "YELLOW_STAR",
-      "CATEGORY_PERSONAL",
-      "CATEGORY_SOCIAL",
-      "CATEGORY_UPDATES",
-      "CATEGORY_FORUMS",
-      "CATEGORY_PURCHASES",
-      "CATEGORY_FINANCE",
-      "CATEGORY_TRAVEL",
-      "CATEGORY_NOTIFICATIONS",
-      "CATEGORY_PRIMARY",
-    ]);
-
-    const systemLabelNames = {
-      INBOX: "Inbox",
-      STARRED: "Starred",
-      IMPORTANT: "Important",
-      UNREAD: "Unread",
-      SNOOZED: "Snoozed",
-      CATEGORY_PRIMARY: "Primary",
-      CATEGORY_PROMOTIONS: "Promotions",
-      CATEGORY_SOCIAL: "Social",
-      CATEGORY_UPDATES: "Updates",
-      CATEGORY_FORUMS: "Forums",
-    };
-
-    const alwaysIncludeLabels = new Set(["CATEGORY_PROMOTIONS"]);
-
-    return labels
-      .filter((label) =>
-        alwaysIncludeLabels.has(label.id) || label.labelListVisibility !== "labelHide"
-      )
-      .filter(
-        (label) =>
-          label.type === "user" || alwaysIncludeLabels.has(label.id) || !hiddenSystemLabels.has(label.id)
-      )
-      .map((label) => ({
-        id: label.id,
-        name: label.name,
-        type: label.type,
-        displayName:
-          label.type === "system"
-            ? systemLabelNames[label.id] ?? label.name ?? label.id
-            : label.name ?? label.id,
-      }))
-      .sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === "system" ? -1 : 1;
-        }
-        return a.displayName.localeCompare(b.displayName);
-      });
+const postAction = (path, messageId) => {
+  if (!messageId) {
+    throw new Error("messageId is required");
+  }
+  const query = buildQueryString({ messageId });
+  return apiFetch(`${path}${query}`, {
+    method: "POST",
+  });
 };
 
-export const markAsRead = (accessToken, messageId) =>
-  gmailMutate(accessToken, `/messages/${messageId}/modify`, {
-    removeLabelIds: ["UNREAD"],
-  });
+export const markAsRead = (messageId) =>
+  postAction("/api/gmail/messages/mark-read", messageId);
 
-export const archiveEmail = (accessToken, messageId) =>
-  gmailMutate(accessToken, `/messages/${messageId}/modify`, {
-    removeLabelIds: ["INBOX"],
-  });
+export const archiveEmail = (messageId) =>
+  postAction("/api/gmail/messages/archive", messageId);
 
-export const starEmail = (accessToken, messageId) =>
-  gmailMutate(accessToken, `/messages/${messageId}/modify`, {
-    addLabelIds: ["STARRED"],
-  });
+export const starEmail = (messageId) => postAction("/api/gmail/messages/star", messageId);
 
 export { GmailApiError };

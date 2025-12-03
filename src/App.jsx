@@ -1,6 +1,5 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, useCallback } from "react";
 import "./App.css";
-import { supabase } from "../supabaseClient";
 import SignInPage from "./pages/SignIn";
 import {
   archiveEmail,
@@ -12,6 +11,7 @@ import {
   GmailApiError,
   formatBodyForDisplay,
 } from "./lib/gmail";
+import { fetchSession as fetchAuthSession, logout as logoutFromApi, redirectToLogin } from "./lib/auth";
 
 const CARD_EXIT_DURATION = 180;
 
@@ -576,7 +576,7 @@ SwipeCard.displayName = "SwipeCard";
 
 function App() {
   const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [emails, setEmails] = useState([]);
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
   const [error, setError] = useState(null);
@@ -597,8 +597,6 @@ function App() {
   const swipeCardRef = useRef(null);
   const headerLabelsRef = useRef(null);
 
-  const providerToken = session?.provider_token;
-
   const userInitials = useMemo(() => {
     const email = session?.user?.email ?? "";
     if (!email) return "";
@@ -618,8 +616,22 @@ function App() {
     [labels]
   );
 
+  const refreshSession = useCallback(async () => {
+    setIsSessionLoading(true);
+    const data = await fetchAuthSession();
+    setSession(data);
+    setIsSessionLoading(false);
+    if (data) {
+      setNeedsGoogleReauth(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!providerToken) {
+    refreshSession();
+  }, [refreshSession]);
+
+  useEffect(() => {
+    if (!session) {
       setLabels([]);
       setSelectedLabelId(null);
       setIsLoadingLabels(false);
@@ -630,7 +642,7 @@ function App() {
     setIsLoadingLabels(true);
     setLabelsError(null);
 
-    fetchLabels(providerToken)
+    fetchLabels()
       .then((fetchedLabels) => {
         setLabels(fetchedLabels);
       })
@@ -641,35 +653,11 @@ function App() {
       .finally(() => {
         setIsLoadingLabels(false);
       });
-  }, [providerToken]);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.provider_token && session?.access_token) {
-        setProfile({
-          avatarUrl: session.user?.user_metadata?.avatar_url,
-        });
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.provider_token && session?.access_token) {
-        setProfile({
-          avatarUrl: session.user?.user_metadata?.avatar_url,
-        });
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  }, [session]);
 
   const loadEmails = useCallback(
     async (labelId = null, { append = false, pageToken = null } = {}) => {
-      if (!providerToken) {
+      if (!session) {
         setNeedsGoogleReauth(true);
         return;
       }
@@ -687,22 +675,13 @@ function App() {
         setError(null);
         setNeedsGoogleReauth(false);
         setNextPageToken(null);
-
-        if (!profile?.avatarUrl && session?.user?.identities?.length) {
-          const googleIdentity = session.user.identities.find(
-            (identity) => identity.provider === "google"
-          );
-          if (googleIdentity?.identity_data?.avatar_url) {
-            setProfile({ avatarUrl: googleIdentity.identity_data.avatar_url });
-          }
-        }
       }
 
       try {
         const maxResults = append ? 20 : 50;
         const response = effectiveLabelId
-          ? await fetchEmailsByLabel(providerToken, effectiveLabelId, maxResults, pageToken)
-          : await fetchRecentEmails(providerToken, maxResults, pageToken);
+          ? await fetchEmailsByLabel(effectiveLabelId, maxResults, pageToken)
+          : await fetchRecentEmails(maxResults, pageToken);
 
         const fetchedEmails = response?.emails ?? [];
         const fetchedNextPageToken = response?.nextPageToken ?? null;
@@ -727,14 +706,14 @@ function App() {
         }
       } catch (err) {
         console.error(err);
-        if (err instanceof GmailApiError && err.status === 403) {
+        if (err instanceof GmailApiError && (err.status === 403 || err.status === 401)) {
           setNeedsGoogleReauth(true);
+          await refreshSession();
           setError(
-            "Google blocked the request because this account hasn’t granted Gmail access to SwipeMail yet."
+            err.status === 403
+              ? "Google blocked the request because this account hasn’t granted Gmail access to SwipeMail yet."
+              : "Your Google session expired. Please reconnect Gmail."
           );
-        } else if (err instanceof GmailApiError && err.status === 401) {
-          setNeedsGoogleReauth(true);
-          setError("Your Google session expired. Please reconnect Gmail.");
         } else {
           setError(
             "We couldn’t load your inbox. Make sure you granted Gmail access and try refreshing."
@@ -748,13 +727,13 @@ function App() {
         }
       }
     },
-    [providerToken, profile?.avatarUrl, session]
+    [session, refreshSession]
   );
 
   useEffect(() => {
-    if (!providerToken) return;
+    if (!session) return;
     loadEmails();
-  }, [providerToken, loadEmails]);
+  }, [session, loadEmails]);
 
   useEffect(() => {
     if (!emails.length) {
@@ -786,7 +765,13 @@ function App() {
   }, [selectedLabelId]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await logoutFromApi();
+    } catch (error) {
+      console.error("Failed to sign out", error);
+    }
+    setSession(null);
+    setIsSessionLoading(false);
     setIsSidebarOpen(false);
     setActiveView("swipe");
     setEmails([]);
@@ -794,6 +779,9 @@ function App() {
     setLabels([]);
     setSelectedLabelId(null);
     setLabelsError(null);
+    setIsLoadingLabels(false);
+    setIsLoadingEmails(false);
+    setError(null);
     setSelectedInboxEmailId(null);
     setNextPageToken(null);
     setIsLoadingMoreEmails(false);
@@ -812,7 +800,7 @@ function App() {
   }, [nextPageToken, isLoadingMoreEmails, selectedLabelId, loadEmails]);
 
   const handleSwipe = async (direction) => {
-    if (!providerToken) {
+    if (!session) {
       setNeedsGoogleReauth(true);
       return;
     }
@@ -844,11 +832,11 @@ function App() {
     (async () => {
       try {
         if (direction === "left") {
-          await markAsRead(providerToken, currentEmail.id);
+          await markAsRead(currentEmail.id);
         } else if (direction === "right") {
-          await archiveEmail(providerToken, currentEmail.id);
+          await archiveEmail(currentEmail.id);
         } else if (direction === "up") {
-          await starEmail(providerToken, currentEmail.id);
+          await starEmail(currentEmail.id);
         }
       } catch (err) {
         console.error(err);
@@ -861,6 +849,7 @@ function App() {
         } else if (err instanceof GmailApiError && err.status === 401) {
           setNeedsGoogleReauth(true);
           setError("Your Google session expired. Please reconnect Gmail.");
+          await refreshSession();
         } else {
           setError("We couldn’t update Gmail. Please refresh and try again.");
         }
@@ -876,20 +865,12 @@ function App() {
     })();
   };
 
-  const reconnectGmail = async () => {
+  const reconnectGmail = () => {
     setNeedsGoogleReauth(false);
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-        scopes:
-          "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify",
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
-    });
+    redirectToLogin();
   };
 
-  const avatarUrl = profile?.avatarUrl ?? session?.user?.user_metadata?.avatar_url ?? null;
+  const avatarUrl = session?.user?.picture ?? null;
 
   useEffect(() => {
     if (!actionFeedback) return undefined;
@@ -919,6 +900,10 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [emails, activeAction, activeView]);
+
+  if (isSessionLoading) {
+    return null;
+  }
 
   if (!session) {
     return <SignInPage />;
