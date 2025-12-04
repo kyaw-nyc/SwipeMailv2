@@ -67,7 +67,7 @@ function SignInPage() {
 
         <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-12 max-w-4xl bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
-            Organize your inbox<br />with simple swipes
+            Triage your email<br />with simple swipes
           </h1>
 
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">

@@ -26,8 +26,8 @@ const CARD_EXIT_TRANSLATIONS = {
 };
 
 const ACTION_COPY = {
-  left: { label: "Marked read", description: "We removed it from your unread pile." },
-  right: { label: "Archived", description: "Moved out of your inbox but always searchable." },
+  left: { label: "Marked read", description: "Removed from your unread queue." },
+  right: { label: "Archived", description: "Cleared from view but always searchable." },
   up: { label: "Starred", description: "Pinned to follow up when you're ready." },
 };
 
@@ -39,9 +39,9 @@ const HINT_COPY = {
 
 const SummarySection = ({ className = "" }) => (
   <div className={`sidebar__summary${className ? ` ${className}` : ""}`}>
-    <h2>Inbox Flow</h2>
+    <h2>Triage Flow</h2>
     <p>
-      Swipe through your latest emails. Archive with a flick right, mark read with a flick left,
+      Swipe through your emails to triage them. Archive with a flick right, mark read with a flick left,
       star important threads by swiping up.
     </p>
     <ul>
@@ -109,8 +109,8 @@ const LabelsPanel = ({
 
 const ViewToggle = ({ activeView, onChange, className = "" }) => {
   const options = [
-    { id: "swipe", label: "Swipe" },
-    { id: "inbox", label: "Inbox" },
+    { id: "swipe", label: "Triage" },
+    { id: "inbox", label: "Review" },
   ];
 
   return (
@@ -183,7 +183,7 @@ const InboxView = ({
     <section className="inbox-view">
       <aside className="inbox-view__list">
         <div className="inbox-view__list-header">
-          <span>Inbox</span>
+          <span>Messages</span>
           <span className="inbox-view__list-count">
             {isLoadingEmails ? "Refreshing…" : `${emails.length} messages`}
           </span>
@@ -195,7 +195,7 @@ const InboxView = ({
 
           {!isLoadingEmails && emails.length === 0 ? (
             <li className="inbox-view__item inbox-view__item--placeholder">
-              Nothing in your inbox right now.
+              No messages to review right now.
             </li>
           ) : null}
 
@@ -239,9 +239,9 @@ const InboxView = ({
       <div className="inbox-view__detail">
         {needsGoogleReauth ? (
           <div className="inbox-view__reauth">
-            <h2>Connect Gmail to keep reading</h2>
+            <h2>Connect Gmail to continue</h2>
             <p>
-              We need permission to read and update your inbox. Google may ask you to confirm the
+              We need permission to read and update your emails. Google may ask you to confirm the
               Gmail scopes because the app is still in testing.
             </p>
             <button type="button" onClick={onReconnect} className="empty-state__cta">
@@ -266,7 +266,7 @@ const InboxView = ({
           <>
             <header className="inbox-view__detail-header">
               <div>
-                <span className="inbox-view__detail-label">Inbox</span>
+                <span className="inbox-view__detail-label">Email</span>
                 <h2>{selectedEmail.subject || "No subject"}</h2>
               </div>
               <time>{new Date(selectedEmail.internalDate).toLocaleString()}</time>
@@ -666,7 +666,7 @@ function App() {
   }, [session?.user?.email]);
 
   const labelOptions = useMemo(
-    () => [{ id: null, displayName: "Unread Inbox", type: "virtual" }, ...labels],
+    () => [{ id: null, displayName: "Unread", type: "virtual" }, ...labels],
     [labels]
   );
 
@@ -978,8 +978,8 @@ function App() {
           <h1>Desktop Experience Only</h1>
           <p>
             SwipeMail is designed for large screens so you can triage Gmail with full keyboard and
-            pointer controls. Please open this app on your laptop or desktop browser to keep
-            swiping.
+            pointer controls. Please open this app on your laptop or desktop browser to start
+            triaging.
           </p>
           <Button
             className="bg-gray-900 text-white hover:bg-gray-800"
@@ -1030,7 +1030,7 @@ function App() {
                 onClick={() => loadEmails(selectedLabelId ?? null)}
                 disabled={isLoadingEmails}
               >
-                {isLoadingEmails ? "Refreshing…" : "Refresh inbox"}
+                {isLoadingEmails ? "Refreshing…" : "Refresh messages"}
               </Button>
               <Button
                 variant="ghost"
@@ -1093,19 +1093,19 @@ function App() {
                 </button>
               ) : null}
               <div className="stage__header-titles">
-                <h1>{activeView === "swipe" ? "Latest mail" : "Inbox"}</h1>
+                <h1>{activeView === "swipe" ? "Triage Queue" : "Review Mode"}</h1>
                 <p>
                   {isLoadingEmails
-                    ? "Fetching your inbox…"
+                    ? "Loading messages…"
                     : emails.length === 0
                     ? "No emails to show."
                     : activeView === "swipe"
                     ? emails.length === 1
-                      ? "1 conversation to triage."
-                      : `${emails.length} conversations to triage.`
+                      ? "1 email to triage."
+                      : `${emails.length} emails to triage.`
                     : emails.length === 1
-                    ? "1 conversation available."
-                  : `${emails.length} conversations available.`}
+                    ? "1 email available."
+                  : `${emails.length} emails available.`}
                 </p>
               </div>
               <div className="stage__header-controls" ref={headerLabelsRef}>
@@ -1126,7 +1126,7 @@ function App() {
                   />
                   <span className="stage__labels-trigger-text">
                     {labelOptions.find((label) => label.id === selectedLabelId)?.displayName ??
-                      "Unread Inbox"}
+                      "Unread"}
                   </span>
                   <span className="stage__labels-trigger-caret" aria-hidden="true">
                     {isHeaderLabelsOpen ? "▲" : "▼"}
@@ -1233,16 +1233,16 @@ function App() {
 
                     {!isLoadingEmails && emails.length === 0 && !needsGoogleReauth ? (
                       <div className="empty-state">
-                        <h2>Nothing left to triage 🎉</h2>
-                        <p>When new emails arrive, swipe through them right here.</p>
+                        <h2>Triage complete 🎉</h2>
+                        <p>All done! New emails will appear here for triage.</p>
                       </div>
                     ) : null}
 
                     {needsGoogleReauth && (
                       <div className="empty-state empty-state--reauth">
-                        <h2>Connect Gmail to start swiping</h2>
+                        <h2>Connect Gmail to start triaging</h2>
                         <p>
-                          We need permission to read and update your inbox. Google may ask you to confirm
+                          We need permission to read and update your emails. Google may ask you to confirm
                           the Gmail scopes because the app is still in testing.
                         </p>
                         <button type="button" onClick={reconnectGmail} className="empty-state__cta">
@@ -1287,7 +1287,7 @@ function App() {
                   ))}
 
                   {emails.length <= 1 && !needsGoogleReauth ? (
-                    <div className="queue-card queue-card--placeholder">Inbox will refill here</div>
+                    <div className="queue-card queue-card--placeholder">Triage queue will refill here</div>
                   ) : null}
                 </aside>
               </section>

@@ -37,7 +37,7 @@ function LearnMore() {
               How SwipeMail Works
             </h1>
             <p className="text-xl text-center text-gray-300 mb-16 max-w-3xl mx-auto">
-              Organize your inbox in seconds with simple, intuitive gestures
+              Triage your email in seconds with simple, intuitive gestures
             </p>
 
             <div className="grid md:grid-cols-3 gap-8 mb-20">
@@ -49,7 +49,7 @@ function LearnMore() {
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-white">Swipe Right to Archive</h3>
                 <p className="text-gray-400 leading-relaxed">
-                  Quickly archive emails you've read and want to remove from your inbox.
+                  Quickly archive emails you've triaged and want to clear from view.
                   Archived emails are still searchable and accessible whenever you need them.
                 </p>
               </Card>
@@ -62,8 +62,8 @@ function LearnMore() {
                 </div>
                 <h3 className="text-2xl font-bold mb-4 text-white">Swipe Left to Mark as Read</h3>
                 <p className="text-gray-400 leading-relaxed">
-                  Mark emails as read without archiving them. Perfect for emails you want to
-                  keep in your inbox but don't need the unread indicator anymore.
+                  Mark emails as read without archiving them. Perfect for emails you've triaged
+                  but want to keep visible for reference.
                 </p>
               </Card>
 
@@ -82,7 +82,7 @@ function LearnMore() {
             </div>
 
             <div className="mb-20">
-              <h2 className="text-4xl font-bold text-center mb-12 text-white">Your Inbox Workflow, Simplified</h2>
+              <h2 className="text-4xl font-bold text-center mb-12 text-white">Your Triage Workflow, Simplified</h2>
               <div className="grid md:grid-cols-3 gap-8">
                 <div className="text-center">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-white">
@@ -102,14 +102,14 @@ function LearnMore() {
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-white">
                     3
                   </div>
-                  <h4 className="text-xl font-bold mb-3 text-white">Inbox Zero in Minutes</h4>
+                  <h4 className="text-xl font-bold mb-3 text-white">Triage in Minutes</h4>
                   <p className="text-gray-400">Process hundreds of emails in the time it used to take for dozens.</p>
                 </div>
               </div>
             </div>
 
             <div className="text-center py-16 bg-gradient-to-b from-transparent via-gray-900/20 to-transparent rounded-3xl">
-              <h2 className="text-4xl font-bold mb-8 text-white">Ready to Transform Your Inbox?</h2>
+              <h2 className="text-4xl font-bold mb-8 text-white">Ready to Master Email Triage?</h2>
               <Button
                 size="lg"
                 className="bg-gray-700 text-white hover:bg-gray-600 px-8 py-6 text-lg font-semibold border border-gray-600"
