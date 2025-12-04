@@ -1,6 +1,10 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, useCallback } from "react";
+import { flushSync } from 'react-dom';
 import "./App.css";
 import SignInPage from "./pages/SignIn";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   archiveEmail,
   fetchRecentEmails,
@@ -346,23 +350,15 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     }
     isDraggingRef.current = false;
 
-    if (!animate) {
-      card.style.transition = "none";
-    } else {
-      card.style.transition = "";
-    }
-
+    card.style.transition = animate ? "" : "none";
     offsetRef.current = { x: 0, y: 0, rotation: 0 };
-    applyTransform({ x: 0, y: 0, rotation: 0 });
+    card.style.transform = "translate3d(0px, 0px, 0px) rotate(0deg)";
     card.style.opacity = "1";
     card.style.willChange = "";
 
     if (!animate) {
-      requestAnimationFrame(() => {
-        if (cardRef.current) {
-          cardRef.current.style.transition = "";
-        }
-      });
+      void card.offsetHeight; // Force reflow instead of RAF
+      card.style.transition = "";
     }
 
     setHint(null);
@@ -467,8 +463,12 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     } else if (deltaY < -48) {
       nextHint = "up";
     }
-    setHint((prev) => (prev === nextHint ? prev : nextHint));
-  }, []);
+
+    // Only update state if hint actually changed
+    if (hint !== nextHint) {
+      setHint(nextHint);
+    }
+  }, [hint]);
 
   const handlePointerUp = useCallback(async (event) => {
     if (!isDraggingRef.current || disabledRef.current) return;
@@ -535,37 +535,91 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
 
   const activeHint = hint ? HINT_COPY[hint] : null;
 
-  const cardClassName = `mail-card${hint ? ` mail-card--${hint}` : ""}`;
   const formattedBody = useMemo(() => {
     const { html } = formatBodyForDisplay(email.rawBody, email.snippet);
     return html || "<p>No preview available.</p>";
   }, [email.id, email.rawBody, email.snippet]);
 
+  // Dark themed card styling with hint-specific shadows
+  const cardClasses = [
+    "w-full min-h-[650px]",
+    "bg-gradient-to-b from-gray-900 to-gray-950",
+    "border border-gray-700 rounded-[32px]",
+    "shadow-[0_10px_20px_rgba(0,0,0,0.4)]",
+    "p-8 md:p-12 flex flex-col gap-5 relative",
+    "will-change-transform transition-[transform,opacity,box-shadow] duration-[180ms] ease-in-out",
+    "touch-none select-none",
+    "[contain:layout_paint] [backface-visibility:hidden]",
+    hint === 'right' && "shadow-[0_32px_70px_rgba(0,0,0,0.6)]",
+    hint === 'left' && "shadow-[0_32px_70px_rgba(0,0,0,0.65)]",
+    hint === 'up' && "shadow-[0_32px_70px_rgba(0,0,0,0.7)]",
+  ].filter(Boolean).join(' ');
+
+  // Dark themed hint styling with differentiation
+  const hintClasses = [
+    "absolute top-6 left-1/2 -translate-x-1/2",
+    "px-4 py-2 rounded-full",
+    "flex items-center gap-2",
+    "font-medium text-sm tracking-wide",
+    "pointer-events-none",
+    "transition-all duration-250 ease-out",
+    "shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
+    !hint && "bg-gray-800/80 border border-gray-700/60 text-gray-400",
+    // Archive hint - lighter gray on dark, thick solid border, scaled
+    hint === 'right' && [
+      "bg-gradient-to-br from-gray-700 to-gray-600",
+      "border-2 border-solid border-gray-400",
+      "text-white",
+      "shadow-[0_6px_16px_rgba(0,0,0,0.4)]",
+      "scale-105"
+    ],
+    // Mark Read hint - mid gray on dark, dashed border
+    hint === 'left' && [
+      "bg-gradient-to-br from-gray-600 to-gray-500",
+      "border-2 border-dashed border-gray-300",
+      "text-white",
+      "shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+    ],
+    // Star hint - brightest gray, thickest border, bold
+    hint === 'up' && [
+      "bg-gradient-to-br from-gray-500 to-gray-400",
+      "border-[3px] border-solid border-gray-200",
+      "text-white font-semibold",
+      "shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
+    ],
+  ].flat().filter(Boolean).join(' ');
+
   return (
     <article
       ref={cardRef}
-      className={cardClassName}
+      className={cardClasses}
       role="button"
       aria-label={`Email from ${email.from} with subject ${email.subject}`}
     >
-      <div className={`mail-card__hint ${hint ? `mail-card__hint--${hint}` : ""}`}>
+      <div className={hintClasses}>
         {activeHint ? (
           <>
             <span>{activeHint.label}</span>
-            <small>{activeHint.sub}</small>
+            <small className="text-xs opacity-65 font-normal tracking-tight">{activeHint.sub}</small>
           </>
         ) : (
-          <span className="mail-card__hint-placeholder">Drag to act</span>
+          <span className="opacity-50">Drag to act</span>
         )}
       </div>
 
-      <header className="mail-card__header">
-        <div className="mail-card__from">{email.from}</div>
-        <time className="mail-card__date">{new Date(email.internalDate).toLocaleString()}</time>
+      <header className="flex items-center justify-between gap-4 text-sm pt-12 cursor-grab active:cursor-grabbing">
+        <div className="font-semibold text-gray-100 overflow-hidden text-ellipsis whitespace-nowrap flex-1">
+          {email.from}
+        </div>
+        <time className="text-gray-400 text-xs flex-shrink-0">
+          {new Date(email.internalDate).toLocaleString()}
+        </time>
       </header>
-      <h3 className="mail-card__subject">{email.subject}</h3>
+      <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight cursor-grab active:cursor-grabbing">
+        {email.subject}
+      </h3>
       <div
-        className="mail-card__body"
+        className="flex-1 overflow-auto text-gray-300 leading-relaxed text-base [&>p]:mb-3 [&>a]:text-blue-400 [&>a]:underline [&>a]:underline-offset-2 [&>a:hover]:text-blue-300"
         dangerouslySetInnerHTML={{ __html: formattedBody }}
       />
     </article>
@@ -813,14 +867,18 @@ function App() {
 
     const feedbackKey = `${currentEmail.id}-${direction}`;
 
-    setEmails((prev) => {
-      if (!prev.length) return prev;
-      if (prev[0]?.id === currentEmail.id) {
-        return prev.slice(1);
-      }
-      return prev.filter((email) => email.id !== currentEmail.id);
+    // Use flushSync for critical synchronous update
+    flushSync(() => {
+      setEmails((prev) => {
+        if (!prev.length) return prev;
+        if (prev[0]?.id === currentEmail.id) {
+          return prev.slice(1);
+        }
+        return prev.filter((email) => email.id !== currentEmail.id);
+      });
     });
 
+    // React 18 automatically batches these
     setActionFeedback({
       key: feedbackKey,
       ...ACTION_COPY[direction],
@@ -923,15 +981,14 @@ function App() {
             pointer controls. Please open this app on your laptop or desktop browser to keep
             swiping.
           </p>
-          <button
-            className="mobile-notice__cta"
-            type="button"
+          <Button
+            className="bg-gray-900 text-white hover:bg-gray-800"
             onClick={() => {
               window.location.href = "mailto:?subject=SwipeMail%20link&body=" + encodeURIComponent(window.location.href);
             }}
           >
             Email this link to yourself
-          </button>
+          </Button>
         </div>
       </div>
       <div className={`dashboard${isSidebarOpen ? " dashboard--with-sidebar" : ""}`}>
@@ -967,23 +1024,28 @@ function App() {
             />
 
             <div className="sidebar__footer">
-              <button
-                className="sidebar__reload"
-                type="button"
+              <Button
+                variant="outline"
+                className="w-full bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                 onClick={() => loadEmails(selectedLabelId ?? null)}
                 disabled={isLoadingEmails}
               >
                 {isLoadingEmails ? "Refreshing…" : "Refresh inbox"}
-              </button>
-              <button className="sidebar__signout" type="button" onClick={signOut}>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                onClick={signOut}
+              >
                 Sign out
-              </button>
+              </Button>
               <div className="sidebar__user">
-                {avatarUrl ? (
-                  <img className="sidebar__avatar sidebar__avatar--image" src={avatarUrl} alt="" />
-                ) : (
-                  <span className="sidebar__avatar">{userInitials}</span>
-                )}
+                <Avatar className="h-10 w-10">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
+                  <AvatarFallback className="bg-gradient-to-br from-gray-700 to-gray-900 text-white">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
                   <strong>{session.user?.email}</strong>
                   <span>Signed in with Google</span>

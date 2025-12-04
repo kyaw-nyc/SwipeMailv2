@@ -1,33 +1,91 @@
-:root {
-  font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
-    Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: #101010;
-  background-color: #f5f5f1;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@theme {
+  /* Full grayscale palette for Tailwind v4 */
+  --color-gray-50: hsl(0 0% 98%);
+  --color-gray-100: hsl(0 0% 96%);
+  --color-gray-200: hsl(0 0% 93%);
+  --color-gray-300: hsl(0 0% 88%);
+  --color-gray-400: hsl(0 0% 75%);
+  --color-gray-500: hsl(0 0% 62%);
+  --color-gray-600: hsl(0 0% 46%);
+  --color-gray-700: hsl(0 0% 38%);
+  --color-gray-800: hsl(0 0% 26%);
+  --color-gray-900: hsl(0 0% 13%);
+  --color-gray-950: hsl(0 0% 5%);
+
+  /* Shadcn color variables */
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(0 0% 5%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(0 0% 5%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(0 0% 5%);
+  --color-primary: hsl(0 0% 10%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(0 0% 95%);
+  --color-secondary-foreground: hsl(0 0% 10%);
+  --color-muted: hsl(0 0% 95%);
+  --color-muted-foreground: hsl(0 0% 40%);
+  --color-accent: hsl(0 0% 93%);
+  --color-accent-foreground: hsl(0 0% 10%);
+  --color-destructive: hsl(0 0% 20%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 90%);
+  --color-input: hsl(0 0% 90%);
+  --color-ring: hsl(0 0% 40%);
+
+  --radius: 0.5rem;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@layer base {
+  :root {
+    background-color: hsl(0, 0%, 98%);
+    color: hsl(0, 0%, 5%);
+  }
+
+  :root {
+    font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+      Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color: hsl(var(--foreground));
+    background-color: hsl(0, 0%, 98%);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: inherit;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font-family: inherit;
+  }
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background-color: inherit;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button {
-  font-family: inherit;
+/* Squares canvas background styling */
+.squares-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
 }
