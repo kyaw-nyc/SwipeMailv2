@@ -540,54 +540,21 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
     return html || "<p>No preview available.</p>";
   }, [email.id, email.rawBody, email.snippet]);
 
-  // Dark themed card styling with hint-specific shadows
+  // Minimal card styling with overlay classes
   const cardClasses = [
-    "w-full min-h-[650px]",
-    "bg-gradient-to-b from-gray-900 to-gray-950",
-    "border border-gray-700 rounded-[32px]",
-    "shadow-[0_10px_20px_rgba(0,0,0,0.4)]",
-    "p-8 md:p-12 flex flex-col gap-5 relative",
-    "will-change-transform transition-[transform,opacity,box-shadow] duration-[180ms] ease-in-out",
-    "touch-none select-none",
-    "[contain:layout_paint] [backface-visibility:hidden]",
-    hint === 'right' && "shadow-[0_32px_70px_rgba(0,0,0,0.6)]",
-    hint === 'left' && "shadow-[0_32px_70px_rgba(0,0,0,0.65)]",
-    hint === 'up' && "shadow-[0_32px_70px_rgba(0,0,0,0.7)]",
+    "mail-card",
+    hint === 'right' && "mail-card--right",
+    hint === 'left' && "mail-card--left",
+    hint === 'up' && "mail-card--up",
   ].filter(Boolean).join(' ');
 
-  // Dark themed hint styling with differentiation
+  // Minimal hint styling
   const hintClasses = [
-    "absolute top-6 left-1/2 -translate-x-1/2",
-    "px-4 py-2 rounded-full",
-    "flex items-center gap-2",
-    "font-medium text-sm tracking-wide",
-    "pointer-events-none",
-    "transition-all duration-250 ease-out",
-    "shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
-    !hint && "bg-gray-800/80 border border-gray-700/60 text-gray-400",
-    // Archive hint - lighter gray on dark, thick solid border, scaled
-    hint === 'right' && [
-      "bg-gradient-to-br from-gray-700 to-gray-600",
-      "border-2 border-solid border-gray-400",
-      "text-white",
-      "shadow-[0_6px_16px_rgba(0,0,0,0.4)]",
-      "scale-105"
-    ],
-    // Mark Read hint - mid gray on dark, dashed border
-    hint === 'left' && [
-      "bg-gradient-to-br from-gray-600 to-gray-500",
-      "border-2 border-dashed border-gray-300",
-      "text-white",
-      "shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
-    ],
-    // Star hint - brightest gray, thickest border, bold
-    hint === 'up' && [
-      "bg-gradient-to-br from-gray-500 to-gray-400",
-      "border-[3px] border-solid border-gray-200",
-      "text-white font-semibold",
-      "shadow-[0_6px_16px_rgba(0,0,0,0.5)]"
-    ],
-  ].flat().filter(Boolean).join(' ');
+    "mail-card__hint",
+    hint === 'right' && "mail-card__hint--right",
+    hint === 'left' && "mail-card__hint--left",
+    hint === 'up' && "mail-card__hint--up",
+  ].filter(Boolean).join(' ');
 
   return (
     <article
@@ -600,26 +567,26 @@ const SwipeCard = forwardRef(({ email, onSwipe, disabled }, ref) => {
         {activeHint ? (
           <>
             <span>{activeHint.label}</span>
-            <small className="text-xs opacity-65 font-normal tracking-tight">{activeHint.sub}</small>
+            <small> · {activeHint.sub}</small>
           </>
         ) : (
-          <span className="opacity-50">Drag to act</span>
+          <span>Drag to triage</span>
         )}
       </div>
 
-      <header className="flex items-center justify-between gap-4 text-sm pt-12 cursor-grab active:cursor-grabbing">
-        <div className="font-semibold text-gray-100 overflow-hidden text-ellipsis whitespace-nowrap flex-1">
+      <header className="mail-card__header">
+        <div className="mail-card__from">
           {email.from}
         </div>
-        <time className="text-gray-400 text-xs flex-shrink-0">
-          {new Date(email.internalDate).toLocaleString()}
+        <time className="mail-card__date">
+          {new Date(email.internalDate).toLocaleDateString()}
         </time>
       </header>
-      <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight cursor-grab active:cursor-grabbing">
-        {email.subject}
+      <h3 className="mail-card__subject">
+        {email.subject || "No subject"}
       </h3>
       <div
-        className="flex-1 overflow-auto text-gray-300 leading-relaxed text-base [&>p]:mb-3 [&>a]:text-blue-400 [&>a]:underline [&>a]:underline-offset-2 [&>a:hover]:text-blue-300"
+        className="mail-card__body"
         dangerouslySetInnerHTML={{ __html: formattedBody }}
       />
     </article>
@@ -971,9 +938,9 @@ function App() {
     <>
       <div className="mobile-notice">
         <div className="mobile-notice__panel">
-          <div className="mobile-notice__logo">
+          <div className="sidebar__brand">
             <strong>SwipeMail</strong>
-            <span className="mobile-notice__chip">Beta</span>
+            <span className="sidebar__tag">Beta</span>
           </div>
           <h1>Desktop Experience Only</h1>
           <p>
@@ -982,7 +949,6 @@ function App() {
             triaging.
           </p>
           <Button
-            className="bg-gray-900 text-white hover:bg-gray-800"
             onClick={() => {
               window.location.href = "mailto:?subject=SwipeMail%20link&body=" + encodeURIComponent(window.location.href);
             }}
@@ -991,23 +957,8 @@ function App() {
           </Button>
         </div>
       </div>
-      <div className={`dashboard${isSidebarOpen ? " dashboard--with-sidebar" : ""}`}>
-        {isSidebarOpen ? (
-          <aside className="dashboard__sidebar" id="dashboard-sidebar">
-            <div className="sidebar__header">
-              <button
-                type="button"
-                className="rail__menu-button sidebar__menu-button"
-                onClick={() => setIsSidebarOpen(false)}
-                aria-label="Hide sidebar"
-                aria-expanded="true"
-                aria-controls="dashboard-sidebar"
-              >
-                <span />
-                <span />
-                <span />
-              </button>
-            </div>
+      <div className="dashboard dashboard--with-sidebar">
+        <aside className="dashboard__sidebar" id="dashboard-sidebar">
             <div className="sidebar__brand">
               <strong>SwipeMail</strong>
               <span className="sidebar__tag">Beta</span>
@@ -1017,24 +968,21 @@ function App() {
             <ViewToggle
               className="sidebar__view-toggle"
               activeView={activeView}
-              onChange={(nextView) => {
-                setActiveView(nextView);
-                setIsSidebarOpen(false);
-              }}
+              onChange={setActiveView}
             />
 
             <div className="sidebar__footer">
               <Button
                 variant="outline"
-                className="w-full bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                className="w-full"
                 onClick={() => loadEmails(selectedLabelId ?? null)}
                 disabled={isLoadingEmails}
               >
-                {isLoadingEmails ? "Refreshing…" : "Refresh messages"}
+                {isLoadingEmails ? "Refreshing…" : "Refresh"}
               </Button>
               <Button
                 variant="ghost"
-                className="w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                className="w-full"
                 onClick={signOut}
               >
                 Sign out
@@ -1042,7 +990,7 @@ function App() {
               <div className="sidebar__user">
                 <Avatar className="h-10 w-10">
                   {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
-                  <AvatarFallback className="bg-gradient-to-br from-gray-700 to-gray-900 text-white">
+                  <AvatarFallback className="bg-[#f5f5f5] text-[#666666] font-semibold">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
@@ -1053,45 +1001,10 @@ function App() {
               </div>
             </div>
           </aside>
-        ) : null}
 
         <main className="dashboard__stage">
-          <div className="stage__mobile-info">
-            <SummarySection className="stage__mobile-summary" />
-            <ViewToggle
-              className="stage__view-toggle"
-              activeView={activeView}
-              onChange={(nextView) => {
-                setActiveView(nextView);
-                setIsSidebarOpen(false);
-              }}
-            />
-            <LabelsPanel
-              className="stage__mobile-labels"
-              labelOptions={labelOptions}
-              selectedLabelId={selectedLabelId}
-              onSelect={handleLabelSelect}
-              isLoadingLabels={isLoadingLabels}
-              labelsError={labelsError}
-              isLoadingEmails={isLoadingEmails}
-            />
-          </div>
           <header className="stage__header">
             <div className="stage__header-left">
-              {!isSidebarOpen ? (
-                <button
-                  type="button"
-                  className="rail__menu-button stage__menu-button"
-                  onClick={() => setIsSidebarOpen(true)}
-                  aria-label="Show sidebar"
-                  aria-controls="dashboard-sidebar"
-                  aria-expanded="false"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </button>
-              ) : null}
               <div className="stage__header-titles">
                 <h1>{activeView === "swipe" ? "Triage Queue" : "Review Mode"}</h1>
                 <p>
@@ -1184,19 +1097,6 @@ function App() {
                 </button>
               </div>
             </div>
-            {activeView === "swipe" && emails.length > 1 && !needsGoogleReauth ? (
-              <button
-                type="button"
-                className={`stage__upnext-toggle${isUpNextOpen ? " stage__upnext-toggle--active" : ""}`}
-                onClick={() => setIsUpNextOpen(!isUpNextOpen)}
-                aria-label="Toggle up next preview"
-                aria-expanded={isUpNextOpen}
-              >
-                <span>Show next items</span>
-              </button>
-            ) : (
-              <div className="stage__refresh-placeholder" />
-            )}
           </header>
 
           {activeView === "swipe" && error ? (
@@ -1219,10 +1119,8 @@ function App() {
           ) : null}
 
           {activeView === "swipe" ? (
-            <>
-              <section className={`stage__deck${isUpNextOpen ? " stage__deck--with-queue" : ""}`}>
-                <div className="stage__deck-main">
-                  <div className="stage__deck-surface">
+            <section className="stage__deck">
+              <div className="stage__deck-surface">
                     {isLoadingEmails && emails.length === 0 ? (
                       <div className="mail-card mail-card--placeholder">
                         <div className="mail-card__skeleton mail-card__skeleton--from" />
@@ -1259,38 +1157,7 @@ function App() {
                         disabled={!!activeAction}
                       />
                     ) : null}
-                  </div>
-                </div>
-
-                <aside
-                  className={`stage__deck-queue${isUpNextOpen ? " stage__deck-queue--visible" : ""}`}
-                >
-                  <div className="stage__deck-queue-header">
-                    <span className="stage__queue-label">Up next</span>
-                    <button
-                      type="button"
-                      className="stage__deck-queue-close"
-                      onClick={() => setIsUpNextOpen(false)}
-                      aria-label="Close up next panel"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {emails.slice(1, 4).map((email) => (
-                    <article key={email.id} className="queue-card">
-                      <div className="queue-card__meta">
-                        <span>{new Date(email.internalDate).toLocaleDateString()}</span>
-                      </div>
-                      <h4>{email.subject}</h4>
-                      <p>{email.from}</p>
-                    </article>
-                  ))}
-
-                  {emails.length <= 1 && !needsGoogleReauth ? (
-                    <div className="queue-card queue-card--placeholder">Triage queue will refill here</div>
-                  ) : null}
-                </aside>
-              </section>
+              </div>
 
               {actionFeedback ? (
                 <div className="stage__feedback">
@@ -1298,7 +1165,7 @@ function App() {
                   <span>{actionFeedback.description}</span>
                 </div>
               ) : null}
-            </>
+            </section>
           ) : (
             <InboxView
               emails={emails}

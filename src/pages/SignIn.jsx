@@ -39,24 +39,23 @@ function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen relative bg-gray-950 text-white overflow-hidden">
+    <div className="min-h-screen relative bg-white text-[#1a1a1a] overflow-hidden">
       <Squares
         speed={0.5}
         squareSize={40}
         direction='diagonal'
-        borderColor='rgba(255, 255, 255, 0.1)'
-        hoverFillColor='rgba(255, 255, 255, 0.05)'
+        borderColor='rgba(0, 0, 0, 0.05)'
+        hoverFillColor='rgba(0, 0, 0, 0.02)'
       />
 
       <div className="relative z-10 flex flex-col min-h-screen">
         <header className="flex items-center justify-between px-6 py-5 md:px-12">
           <div className="text-2xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">SwipeMail</span>
+            <span>SwipeMail</span>
           </div>
           <nav>
             <Button
               variant="ghost"
-              className="text-white hover:bg-white/10"
               onClick={handleGoogleSignIn}
               disabled={isGoogleSubmitting}
             >
@@ -66,14 +65,14 @@ function SignInPage() {
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-12 max-w-4xl bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
+          <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-12 max-w-4xl text-[#1a1a1a]">
             Triage your email<br />with simple swipes
           </h1>
 
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
             <Button
               size="lg"
-              className="bg-gray-700 text-white hover:bg-gray-600 px-8 py-6 text-lg font-semibold border border-gray-600"
+              className="px-8 py-6 text-lg font-semibold"
               onClick={handleGoogleSignIn}
               disabled={isGoogleSubmitting}
             >
@@ -82,7 +81,7 @@ function SignInPage() {
             <Button
               size="lg"
               variant="outline"
-              className="!bg-transparent border-2 border-gray-500 text-white hover:!bg-gray-800/50 hover:border-gray-400 px-8 py-6 text-lg font-semibold transition-all"
+              className="px-8 py-6 text-lg font-semibold"
               asChild
             >
               <Link to="/learn-more">
@@ -92,7 +91,7 @@ function SignInPage() {
           </div>
 
           {feedback ? (
-            <div className="mt-8 px-6 py-3 bg-gray-800/30 border border-gray-700 text-gray-200 rounded-lg max-w-md">
+            <div className="mt-8 px-6 py-3 bg-[#fafafa] border border-[#e5e5e5] text-[#666666] rounded-lg max-w-md">
               {feedback.text}
             </div>
           ) : null}
